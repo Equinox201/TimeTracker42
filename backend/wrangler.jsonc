@@ -16,8 +16,8 @@
     	]
   	},
   	"migrations": [
-    	{ "tag": "v1", "new_classes": ["UserStore"] }
-  	]
+  		{ "tag": "v1", "new_sqlite_classes": ["UserStore"] }
+	]
 }
 	/**
 	 * Smart Placement
