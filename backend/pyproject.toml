@@ -35,6 +35,11 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B"]
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"alembic/env.py" = ["I001"]
+"alembic/versions/*.py" = ["E501", "I001"]
 
 [tool.setuptools.packages.find]
 where = ["."]

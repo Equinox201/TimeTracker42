@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     app_env: str = Field(default="local", alias="APP_ENV")
+    app_base_url: str = Field(default="http://127.0.0.1:8000", alias="APP_BASE_URL")
     api_host: str = Field(default="127.0.0.1", alias="API_HOST")
     api_port: int = Field(default=8000, alias="API_PORT")
     api_prefix: str = Field(default="/api/v1", alias="API_PREFIX")
@@ -20,6 +21,8 @@ class Settings(BaseSettings):
     jwt_secret: str = Field(default="dev-change-me", alias="JWT_SECRET")
     jwt_access_ttl_minutes: int = Field(default=15, alias="JWT_ACCESS_TTL_MINUTES")
     jwt_refresh_ttl_days: int = Field(default=30, alias="JWT_REFRESH_TTL_DAYS")
+    oauth_state_ttl_minutes: int = Field(default=10, alias="OAUTH_STATE_TTL_MINUTES")
+    mobile_otc_ttl_minutes: int = Field(default=5, alias="MOBILE_OTC_TTL_MINUTES")
 
     token_encryption_key: str = Field(default="dev-change-me", alias="TOKEN_ENCRYPTION_KEY")
 
@@ -37,7 +40,10 @@ class Settings(BaseSettings):
         default="https://api.intra.42.fr/oauth/token",
         alias="FORTYTWO_OAUTH_TOKEN_URL",
     )
-    fortytwo_api_base_url: str = Field(default="https://api.intra.42.fr/v2", alias="FORTYTWO_API_BASE_URL")
+    fortytwo_api_base_url: str = Field(
+        default="https://api.intra.42.fr/v2",
+        alias="FORTYTWO_API_BASE_URL",
+    )
 
     mobile_deep_link_scheme: str = Field(default="timetracker42", alias="MOBILE_DEEP_LINK_SCHEME")
     sync_cooldown_minutes: int = Field(default=5, alias="SYNC_COOLDOWN_MINUTES")
