@@ -49,7 +49,11 @@ def test_dashboard_summary(client, db_session) -> None:
     data = response.json()
     assert data["hours_today"] == 2.0
     assert data["hours_month"] >= 3.0
+    assert data["daily_goal_hours"] == 2.0
+    assert data["weekly_goal_hours"] == 12.0
     assert data["monthly_goal_hours"] == 90.0
     assert data["hours_left_to_monthly_goal"] <= 87.0
     assert data["pace_mode"] == "calendar_days"
     assert data["is_stale"] is False
+    assert data["stale_age_hours"] is not None
+    assert data["last_synced_at"] is not None

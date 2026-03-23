@@ -8,6 +8,9 @@ struct TimeTracker42App: App {
         WindowGroup {
             RootView()
                 .environment(appState)
+                .task {
+                    await appState.bootstrapSession()
+                }
         }
     }
 }

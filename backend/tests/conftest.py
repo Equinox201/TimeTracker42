@@ -16,6 +16,7 @@ from app.models.goal import Goal
 from app.models.mobile_auth_code import MobileAuthCode
 from app.models.oauth_token import OAuthToken
 from app.models.refresh_token import AppRefreshToken
+from app.models.sync_run import AttendanceSyncRun
 from app.models.user import User
 
 
@@ -34,6 +35,7 @@ def db_session() -> Generator[Session, None, None]:
     OAuthToken.__table__.create(engine)
     MobileAuthCode.__table__.create(engine)
     AppRefreshToken.__table__.create(engine)
+    AttendanceSyncRun.__table__.create(engine)
 
     testing_session = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     session = testing_session()
