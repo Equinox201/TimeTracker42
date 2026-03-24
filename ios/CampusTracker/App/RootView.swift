@@ -10,14 +10,15 @@ struct RootView: View {
             } else if appState.isAuthenticated {
                 TabView {
                     DashboardView()
-                        .tabItem { Label("Dashboard", systemImage: "gauge") }
+                        .tabItem { Label("Main", systemImage: "gauge") }
 
                     AttendanceHistoryView()
-                        .tabItem { Label("History", systemImage: "chart.bar.xaxis") }
+                        .tabItem { Label("Historic", systemImage: "chart.bar.xaxis") }
 
                     SettingsView()
                         .tabItem { Label("Settings", systemImage: "gearshape") }
                 }
+                .tint(TT42Palette.magenta)
             } else {
                 LoginView()
             }
