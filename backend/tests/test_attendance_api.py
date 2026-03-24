@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, date, datetime, timedelta
 
 from app.models.attendance_daily import AttendanceDaily
+from app.models.sync_run import AttendanceSyncRun
 from app.models.user import User
 
 
@@ -33,6 +34,15 @@ def test_attendance_history_returns_days_and_totals(client, db_session) -> None:
             day=today,
             duration_seconds=1800,
             source_value_raw="00:30:00.000000",
+        )
+    )
+    db_session.add(
+        AttendanceSyncRun(
+            user_id=user.id,
+            trigger="manual",
+            status="success",
+            started_at=datetime.now(UTC),
+            finished_at=datetime.now(UTC),
         )
     )
     db_session.commit()
@@ -88,6 +98,15 @@ def test_attendance_history_fills_missing_days(client, db_session) -> None:
             duration_seconds=3600,
             source_value_raw="01:00:00.000000",
             updated_from_source_at=datetime.now(UTC) - timedelta(hours=12),
+        )
+    )
+    db_session.add(
+        AttendanceSyncRun(
+            user_id=user.id,
+            trigger="manual",
+            status="success",
+            started_at=datetime.now(UTC) - timedelta(hours=12),
+            finished_at=datetime.now(UTC) - timedelta(hours=12),
         )
     )
     db_session.commit()

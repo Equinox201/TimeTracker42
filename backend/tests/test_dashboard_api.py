@@ -1,7 +1,8 @@
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from app.models.attendance_daily import AttendanceDaily
 from app.models.goal import Goal
+from app.models.sync_run import AttendanceSyncRun
 from app.models.user import User
 
 
@@ -41,6 +42,15 @@ def test_dashboard_summary(client, db_session) -> None:
 
     db_session.add(today_row)
     db_session.add(two_days_ago_row)
+    db_session.add(
+        AttendanceSyncRun(
+            user_id=user.id,
+            trigger="manual",
+            status="success",
+            started_at=datetime.now(UTC),
+            finished_at=datetime.now(UTC),
+        )
+    )
     db_session.commit()
 
     response = client.get("/api/v1/dashboard/summary", headers={"X-Demo-User": "alice"})

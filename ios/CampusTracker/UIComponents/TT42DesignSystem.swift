@@ -1,9 +1,13 @@
 import SwiftUI
 
 enum TT42Palette {
-    static let magenta = Color(red: 0.96, green: 0.12, blue: 0.66)
+    static let magenta = Color(red: 0.90, green: 0.20, blue: 0.64)
     static let mint = Color(red: 0.24, green: 0.87, blue: 0.66)
     static let teal = Color(red: 0.07, green: 0.62, blue: 0.75)
+    static let cyan = Color(red: 0.18, green: 0.72, blue: 0.86)
+
+    static let primaryTint = teal
+    static let secondaryTint = mint
 
     static let darkTrack = Color(red: 0.24, green: 0.24, blue: 0.26)
     static let cardLight = Color(red: 0.97, green: 0.98, blue: 1.00)

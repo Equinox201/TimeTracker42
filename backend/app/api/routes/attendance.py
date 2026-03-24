@@ -1,16 +1,15 @@
 from datetime import UTC, date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.config import settings
 from app.core.db import get_db
+from app.models.sync_run import AttendanceSyncRun
 from app.models.user import User
-from app.repositories.attendance_repository import (
-    latest_source_update,
-    list_attendance_between,
-)
+from app.repositories.attendance_repository import list_attendance_between
 from app.schemas.attendance import AttendanceHistoryDay, AttendanceHistoryResponse
 
 router = APIRouter()
@@ -18,6 +17,19 @@ router = APIRouter()
 
 def _hours(seconds: int | None) -> float:
     return round((seconds or 0) / 3600, 2)
+
+
+def _latest_successful_sync_finished_at(db: Session, user_id) -> datetime | None:
+    return db.scalar(
+        select(AttendanceSyncRun.finished_at)
+        .where(
+            AttendanceSyncRun.user_id == user_id,
+            AttendanceSyncRun.status == "success",
+            AttendanceSyncRun.finished_at.is_not(None),
+        )
+        .order_by(AttendanceSyncRun.finished_at.desc())
+        .limit(1)
+    )
 
 
 @router.get("/history", response_model=AttendanceHistoryResponse)
@@ -66,17 +78,17 @@ def attendance_history(
         )
         cursor += timedelta(days=1)
 
-    latest_update = latest_source_update(db, current_user.id)
+    latest_successful_sync = _latest_successful_sync_finished_at(db, current_user.id)
     stale_age_hours: float | None = None
     last_synced_at: datetime | None = None
-    if latest_update is None:
+    if latest_successful_sync is None:
         is_stale = True
     else:
-        if latest_update.tzinfo is None:
-            latest_update = latest_update.replace(tzinfo=UTC)
-        stale_age_hours = round((datetime.now(UTC) - latest_update).total_seconds() / 3600, 2)
+        if latest_successful_sync.tzinfo is None:
+            latest_successful_sync = latest_successful_sync.replace(tzinfo=UTC)
+        stale_age_hours = round((datetime.now(UTC) - latest_successful_sync).total_seconds() / 3600, 2)
         is_stale = stale_age_hours > settings.stale_warning_hours
-        last_synced_at = latest_update
+        last_synced_at = latest_successful_sync
 
     return AttendanceHistoryResponse(
         from_date=from_date,

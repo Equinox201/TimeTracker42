@@ -3,11 +3,12 @@ from __future__ import annotations
 from datetime import UTC, date, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.attendance_daily import AttendanceDaily
 from app.models.goal import Goal
+from app.models.sync_run import AttendanceSyncRun
 from app.schemas.dashboard import DashboardSummary
 from app.services.metrics import calculate_monthly_pace
 
@@ -21,6 +22,19 @@ def _previous_month_range(current: date) -> tuple[date, date]:
     previous_month_end = current_month_start - timedelta(days=1)
     previous_month_start = previous_month_end.replace(day=1)
     return previous_month_start, previous_month_end
+
+
+def _latest_successful_sync_finished_at(db: Session, user_id: UUID) -> datetime | None:
+    return db.scalar(
+        select(AttendanceSyncRun.finished_at)
+        .where(
+            AttendanceSyncRun.user_id == user_id,
+            AttendanceSyncRun.status == "success",
+            AttendanceSyncRun.finished_at.is_not(None),
+        )
+        .order_by(AttendanceSyncRun.finished_at.desc())
+        .limit(1)
+    )
 
 
 def build_dashboard_summary(
@@ -106,26 +120,22 @@ def build_dashboard_summary(
         weekdays_only=True,
     )
 
-    latest_source_update = db.scalar(
-        select(func.max(AttendanceDaily.updated_from_source_at)).where(
-            AttendanceDaily.user_id == user_id
-        )
-    )
+    latest_successful_sync = _latest_successful_sync_finished_at(db, user_id)
 
     stale_age_hours: float | None = None
     last_synced_at: str | None = None
-    if latest_source_update is None:
+    if latest_successful_sync is None:
         is_stale = True
     else:
         # Some DBs may return naive timestamps; treat them as UTC.
-        if latest_source_update.tzinfo is None:
-            latest_source_update = latest_source_update.replace(tzinfo=UTC)
+        if latest_successful_sync.tzinfo is None:
+            latest_successful_sync = latest_successful_sync.replace(tzinfo=UTC)
         stale_age_hours = round(
-            (datetime.now(UTC) - latest_source_update).total_seconds() / 3600,
+            (datetime.now(UTC) - latest_successful_sync).total_seconds() / 3600,
             2,
         )
         is_stale = stale_age_hours > stale_warning_hours
-        last_synced_at = latest_source_update.isoformat()
+        last_synced_at = latest_successful_sync.isoformat()
 
     return DashboardSummary(
         hours_today=_hours(today_seconds),

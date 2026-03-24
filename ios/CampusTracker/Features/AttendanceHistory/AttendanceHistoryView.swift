@@ -3,10 +3,13 @@ import SwiftUI
 
 struct AttendanceHistoryView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.scenePhase) private var scenePhase
+
     @State private var history: AttendanceHistoryResponse?
     @State private var selectedMonth: Date = Date()
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var lastAutoRefreshAt: Date?
 
     @AppStorage("ui_daily_goal_hours") private var localDailyGoalHours = 6.0
     @AppStorage("ui_weekly_goal_hours") private var localWeeklyGoalHours = 22.5
@@ -27,6 +30,9 @@ struct AttendanceHistoryView: View {
                         )
                     } else if let history {
                         ScrollView {
+                            let points = monthlyPoints(from: history.days)
+                            let selectedMonthDays = filterToMonth(history.days, month: selectedMonth)
+
                             VStack(spacing: TT42Spacing.large) {
                                 TT42SectionHeader(
                                     "Historic Attendance",
@@ -41,14 +47,14 @@ struct AttendanceHistoryView: View {
                                 VStack(alignment: .leading, spacing: TT42Spacing.small) {
                                     TT42SectionHeader("Monthly Totals", subtitle: "Last 6 months")
 
-                                    Chart(monthlyPoints(from: history.days)) { point in
+                                    Chart(points) { point in
                                         BarMark(
                                             x: .value("Month", point.month, unit: .month),
                                             y: .value("Hours", point.hours)
                                         )
                                         .foregroundStyle(
                                             LinearGradient(
-                                                colors: [TT42Palette.teal, TT42Palette.magenta],
+                                                colors: [TT42Palette.cyan, TT42Palette.mint],
                                                 startPoint: .bottom,
                                                 endPoint: .top
                                             )
@@ -59,7 +65,9 @@ struct AttendanceHistoryView: View {
                                 }
                                 .tt42CardStyle()
 
-                                monthPicker(points: monthlyPoints(from: history.days))
+                                rangeSummaryCard(points: points)
+
+                                monthPicker(points: points)
 
                                 AttendanceMonthCalendarView(
                                     month: selectedMonth,
@@ -69,14 +77,15 @@ struct AttendanceHistoryView: View {
                                         month: selectedMonth,
                                         weeklyGoal: localWeeklyGoalHours
                                     ),
-                                    entriesByDate: attendanceByDate(
-                                        filterToMonth(history.days, month: selectedMonth)
-                                    )
+                                    entriesByDate: attendanceByDate(selectedMonthDays)
                                 )
 
-                                statsCard(for: history)
+                                monthSummaryCard(days: selectedMonthDays)
                             }
                             .padding(TT42Spacing.medium)
+                        }
+                        .refreshable {
+                            await refreshHistory(forceSync: true)
                         }
                     } else {
                         ContentUnavailableView("No history data", systemImage: "calendar")
@@ -87,7 +96,7 @@ struct AttendanceHistoryView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        Task { await refreshHistory() }
+                        Task { await refreshHistory(forceSync: true) }
                     } label: {
                         if isLoading {
                             ProgressView()
@@ -101,12 +110,22 @@ struct AttendanceHistoryView: View {
             .task(id: appState.accessToken) {
                 await refreshHistory()
             }
+            .onChange(of: scenePhase) { _, newPhase in
+                guard newPhase == .active, shouldAutoRefresh else { return }
+                Task { await refreshHistory() }
+            }
             .alert("History Error", isPresented: errorAlertBinding) {
                 Button("OK") { errorMessage = nil }
             } message: {
                 Text(errorMessage ?? "")
             }
         }
+    }
+
+    private var shouldAutoRefresh: Bool {
+        guard appState.isAuthenticated, !isLoading else { return false }
+        guard let lastAutoRefreshAt else { return true }
+        return Date().timeIntervalSince(lastAutoRefreshAt) > 90
     }
 
     private var errorAlertBinding: Binding<Bool> {
@@ -120,7 +139,7 @@ struct AttendanceHistoryView: View {
         )
     }
 
-    private func refreshHistory() async {
+    private func refreshHistory(forceSync: Bool = false) async {
         isLoading = true
         defer { isLoading = false }
 
@@ -128,19 +147,29 @@ struct AttendanceHistoryView: View {
 
         do {
             let accessToken = try await appState.validAccessToken()
+            if forceSync {
+                try? await appState.apiClient.triggerManualSync(accessToken: accessToken, force: true)
+            }
+
             let loadedHistory = try await appState.apiClient.getAttendanceHistory(
                 accessToken: accessToken,
                 from: range.start,
                 to: range.end
             )
+
             history = loadedHistory
-            if selectedMonth > range.end || selectedMonth < range.start {
+            let available = monthlyPoints(from: loadedHistory.days)
+            let normalizedSelection = startOfMonth(for: selectedMonth)
+            let availableMonths = Set(available.map(\.month))
+            if availableMonths.contains(normalizedSelection) {
+                selectedMonth = normalizedSelection
+            } else if let last = available.last {
+                selectedMonth = last.month
+            } else {
                 selectedMonth = startOfMonth(for: Date())
-            } else if history?.days.isEmpty == false {
-                let available = monthlyPoints(from: loadedHistory.days)
-                selectedMonth = available.last?.month ?? startOfMonth(for: Date())
             }
             appState.isDataStale = loadedHistory.isStale
+            lastAutoRefreshAt = Date()
             errorMessage = nil
         } catch {
             if let apiError = error as? APIError, case .unauthorized = apiError {
@@ -158,21 +187,52 @@ struct AttendanceHistoryView: View {
         return "History is up to date."
     }
 
-    private func formatHours(_ value: Double) -> String {
-        String(format: "%.2f", value)
-    }
-
     private func formatTenths(_ value: Double) -> String {
         String(format: "%.1f", value)
     }
 
-    private func statsCard(for history: AttendanceHistoryResponse) -> some View {
-        VStack(alignment: .leading, spacing: TT42Spacing.small) {
+    private func rangeSummaryCard(points: [MonthlyAttendancePoint]) -> some View {
+        let totalHours = points.reduce(0) { $0 + $1.hours }
+        let avgHours = points.isEmpty ? 0 : totalHours / Double(points.count)
+        let best = points.max(by: { $0.hours < $1.hours })
+        let firstMonth = points.first?.month
+        let lastMonth = points.last?.month
+
+        return VStack(alignment: .leading, spacing: TT42Spacing.small) {
             TT42SectionHeader("Range Summary")
-            row("Range", "\(history.fromDate) to \(history.toDate)")
-            row("Days in range", "\(history.totalDays)")
-            row("Total hours", "\(formatHours(history.totalHours)) h")
-            row("Recorded days", "\(history.days.filter(\.hasRecord).count)")
+            if points.isEmpty {
+                row("Range", "No monthly data")
+            } else {
+                row(
+                    "Range",
+                    "\(formattedMonth(firstMonth)) - \(formattedMonth(lastMonth))"
+                )
+            }
+            row("Total time", TimeFormatters.hoursToReadable(totalHours))
+            row("Average / month", TimeFormatters.hoursToReadable(avgHours))
+            if let best {
+                row(
+                    "Best month",
+                    "\(formattedMonth(best.month)) • \(TimeFormatters.hoursToReadable(best.hours))"
+                )
+            }
+        }
+        .tt42CardStyle()
+    }
+
+    private func monthSummaryCard(days: [AttendanceHistoryDay]) -> some View {
+        let totalHours = days.reduce(0) { $0 + $1.hours }
+        let recordedDays = days.filter(\.hasRecord).count
+        let achievedDays = days.filter { $0.hours >= localDailyGoalHours && localDailyGoalHours > 0 }.count
+        let weekHits = achievedWeekStarts(from: days, month: selectedMonth, weeklyGoal: localWeeklyGoalHours).count
+
+        return VStack(alignment: .leading, spacing: TT42Spacing.small) {
+            TT42SectionHeader("Month Summary")
+            row("Month", formattedMonth(selectedMonth))
+            row("Total time", TimeFormatters.hoursToReadable(totalHours))
+            row("Recorded days", "\(recordedDays)")
+            row("Goal-achieved days", "\(achievedDays)")
+            row("Weekly goals hit", "\(weekHits)")
         }
         .tt42CardStyle()
     }
@@ -185,12 +245,12 @@ struct AttendanceHistoryView: View {
                     Button {
                         selectedMonth = point.month
                     } label: {
-                        Text(Self.monthLabelFormatter.string(from: point.month))
+                        Text(Self.monthShortFormatter.string(from: point.month))
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(selected ? Color.white : Color.primary)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 8)
-                            .background(selected ? TT42Palette.magenta : TT42Palette.darkTrack.opacity(0.12))
+                            .background(selected ? TT42Palette.primaryTint : TT42Palette.darkTrack.opacity(0.12))
                             .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
@@ -223,6 +283,11 @@ struct AttendanceHistoryView: View {
         return totals
             .map { MonthlyAttendancePoint(month: $0.key, hours: $0.value) }
             .sorted { $0.month < $1.month }
+    }
+
+    private func formattedMonth(_ date: Date?) -> String {
+        guard let date else { return "-" }
+        return Self.monthLongFormatter.string(from: date)
     }
 
     private func startOfMonth(for date: Date) -> Date {
@@ -283,9 +348,15 @@ struct AttendanceHistoryView: View {
         var id: Date { month }
     }
 
-    private static let monthLabelFormatter: DateFormatter = {
+    private static let monthShortFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM"
+        return formatter
+    }()
+
+    private static let monthLongFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "LLLL yyyy"
         return formatter
     }()
 }

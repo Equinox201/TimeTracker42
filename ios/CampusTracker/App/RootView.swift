@@ -18,7 +18,7 @@ struct RootView: View {
                     SettingsView()
                         .tabItem { Label("Settings", systemImage: "gearshape") }
                 }
-                .tint(TT42Palette.magenta)
+                .tint(TT42Palette.primaryTint)
             } else {
                 LoginView()
             }

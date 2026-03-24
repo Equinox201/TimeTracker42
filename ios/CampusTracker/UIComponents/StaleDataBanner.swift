@@ -5,18 +5,21 @@ struct StaleDataBanner: View {
     let message: String
 
     var body: some View {
+        let staleColor: Color = .orange
+        let freshColor: Color = TT42Palette.mint
+
         HStack {
             Image(systemName: isStale ? "exclamationmark.triangle.fill" : "checkmark.seal.fill")
-                .foregroundStyle(isStale ? TT42Palette.magenta : TT42Palette.mint)
+                .foregroundStyle(isStale ? staleColor : freshColor)
             Text(message)
                 .font(.subheadline)
             Spacer()
         }
         .padding(12)
-        .background((isStale ? TT42Palette.magenta : TT42Palette.mint).opacity(0.15))
+        .background((isStale ? staleColor : freshColor).opacity(0.15))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke((isStale ? TT42Palette.magenta : TT42Palette.mint).opacity(0.25), lineWidth: 1)
+                .stroke((isStale ? staleColor : freshColor).opacity(0.25), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }

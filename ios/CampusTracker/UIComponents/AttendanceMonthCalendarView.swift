@@ -98,7 +98,7 @@ struct AttendanceMonthCalendarView: View {
         VStack(spacing: 2) {
             Text("\(calendar.component(.day, from: startOfDay))")
                 .font(.caption.weight(.semibold))
-            Text(entry?.hours ?? 0, format: .number.precision(.fractionLength(0...1)))
+            Text(entry.map { dayHoursLabel($0.hours) } ?? "0m")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
@@ -142,6 +142,11 @@ struct AttendanceMonthCalendarView: View {
 
     private func weekStartDate(for date: Date) -> Date {
         calendar.dateInterval(of: .weekOfYear, for: date)?.start ?? date
+    }
+
+    private func dayHoursLabel(_ hours: Double) -> String {
+        if hours <= 0 { return "0m" }
+        return TimeFormatters.hoursToClock(hours)
     }
 
     private var legend: some View {
