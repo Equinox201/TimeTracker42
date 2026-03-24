@@ -5,11 +5,11 @@ from datetime import date, timedelta
 from app.core.security import now_utc
 from app.models.attendance_daily import AttendanceDaily
 from app.models.sync_run import AttendanceSyncRun
-from app.models.user import User
 from app.services.fortytwo_client import FortyTwoClient
 
 
-def test_manual_sync_inserts_then_updates(client, db_session, monkeypatch) -> None:
+def test_manual_sync_inserts_and_then_hits_cooldown(client, db_session, monkeypatch, make_auth_headers) -> None:
+    headers, user = make_auth_headers(login="alice", forty_two_user_id=4242, display_name="Alice")
     today = date.today()
     previous_day = today - timedelta(days=1)
 
@@ -29,7 +29,7 @@ def test_manual_sync_inserts_then_updates(client, db_session, monkeypatch) -> No
 
     monkeypatch.setattr(FortyTwoClient, "fetch_locations_stats", fake_fetch_locations_stats)
 
-    first = client.post("/api/v1/sync/manual", headers={"X-Demo-User": "alice"})
+    first = client.post("/api/v1/sync/manual", headers=headers)
     assert first.status_code == 200
     first_data = first.json()
     assert first_data["status"] == "success"
@@ -40,16 +40,51 @@ def test_manual_sync_inserts_then_updates(client, db_session, monkeypatch) -> No
     second = client.post(
         "/api/v1/sync/manual",
         params={"force": "true"},
-        headers={"X-Demo-User": "alice"},
+        headers=headers,
     )
-    assert second.status_code == 200
-    second_data = second.json()
-    assert second_data["status"] == "success"
-    assert second_data["inserted_days"] == 0
-    assert second_data["updated_days"] == 1
-    assert second_data["unchanged_days"] == 1
+    assert second.status_code == 429
+    assert "cooldown" in second.json()["detail"].lower()
 
-    user = db_session.query(User).filter_by(login="alice").one()
+    today_row = (
+        db_session.query(AttendanceDaily)
+        .filter(AttendanceDaily.user_id == user.id, AttendanceDaily.day == today)
+        .one()
+    )
+    assert today_row.duration_seconds == int(1.5 * 3600)
+    assert today_row.source_value_raw == "01:30:00.000000"
+
+
+def test_manual_sync_updates_existing_day_row(client, db_session, monkeypatch, make_auth_headers) -> None:
+    headers, user = make_auth_headers(login="charlie", forty_two_user_id=4244, display_name="Charlie")
+    today = date.today()
+    previous_day = today - timedelta(days=1)
+
+    db_session.add(
+        AttendanceDaily(
+            user_id=user.id,
+            day=today,
+            duration_seconds=3600,
+            source_value_raw="01:00:00.000000",
+            updated_from_source_at=now_utc(),
+        )
+    )
+    db_session.commit()
+
+    def fake_fetch_locations_stats(_db, _user):
+        return {
+            today.isoformat(): "02:00:00.000000",
+            previous_day.isoformat(): None,
+        }
+
+    monkeypatch.setattr(FortyTwoClient, "fetch_locations_stats", fake_fetch_locations_stats)
+
+    response = client.post("/api/v1/sync/manual", headers=headers)
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["inserted_days"] == 1
+    assert payload["updated_days"] == 1
+    assert payload["unchanged_days"] == 0
+
     today_row = (
         db_session.query(AttendanceDaily)
         .filter(AttendanceDaily.user_id == user.id, AttendanceDaily.day == today)
@@ -59,16 +94,13 @@ def test_manual_sync_inserts_then_updates(client, db_session, monkeypatch) -> No
     assert today_row.source_value_raw == "02:00:00.000000"
 
 
-def test_manual_sync_respects_cooldown(client, db_session, monkeypatch) -> None:
+def test_manual_sync_respects_cooldown(client, db_session, monkeypatch, make_auth_headers) -> None:
     def fake_fetch_locations_stats(_db, _user):
         return {date.today().isoformat(): "01:00:00.000000"}
 
     monkeypatch.setattr(FortyTwoClient, "fetch_locations_stats", fake_fetch_locations_stats)
 
-    user = User(forty_two_user_id=4242, login="bob", display_name="Bob")
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
+    headers, user = make_auth_headers(login="bob", forty_two_user_id=4243, display_name="Bob")
 
     recent_run = AttendanceSyncRun(
         user_id=user.id,
@@ -80,6 +112,6 @@ def test_manual_sync_respects_cooldown(client, db_session, monkeypatch) -> None:
     db_session.add(recent_run)
     db_session.commit()
 
-    response = client.post("/api/v1/sync/manual", headers={"X-Demo-User": "bob"})
+    response = client.post("/api/v1/sync/manual", headers=headers)
     assert response.status_code == 429
     assert "cooldown" in response.json()["detail"].lower()

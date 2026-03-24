@@ -8,7 +8,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.core.config import settings
 from app.core.db import get_db
+from app.core.security import create_access_token
 from app.main import app
 from app.models.attendance_daily import AttendanceDaily
 from app.models.deadline import Deadline
@@ -62,3 +64,29 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
             yield test_client
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def make_auth_headers(db_session: Session):
+    def _make(
+        login: str = "alice",
+        forty_two_user_id: int = 4242,
+        display_name: str | None = None,
+    ) -> tuple[dict[str, str], User]:
+        user = User(
+            forty_two_user_id=forty_two_user_id,
+            login=login,
+            display_name=display_name or login,
+        )
+        db_session.add(user)
+        db_session.commit()
+        db_session.refresh(user)
+
+        access_token, _ = create_access_token(
+            user_id=user.id,
+            secret=settings.jwt_secret,
+            ttl_minutes=30,
+        )
+        return {"Authorization": f"Bearer {access_token}"}, user
+
+    return _make

@@ -28,9 +28,11 @@ struct ConcentricActivityRingsView: View {
                     .fill(.black)
                     .frame(width: 82, height: 82)
 
-                Text("42")
-                    .font(.system(size: 34, weight: .black, design: .rounded))
+                Text(TimeFormatters.hoursToReadable(monthlyHoursValue))
+                    .font(.system(size: 16, weight: .black, design: .rounded))
                     .foregroundStyle(.white)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
             }
             .frame(height: 308)
             .animation(.spring(response: 0.45, dampingFraction: 0.82), value: metrics.map(\.progress))
@@ -59,6 +61,13 @@ struct ConcentricActivityRingsView: View {
             }
         }
         .tt42CardStyle()
+    }
+
+    private var monthlyHoursValue: Double {
+        if let monthMetric = metrics.first(where: { $0.title.lowercased() == "month" }) {
+            return monthMetric.valueHours
+        }
+        return metrics.first?.valueHours ?? 0
     }
 
     private func percentLabel(progress: Double) -> String {

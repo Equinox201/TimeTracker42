@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.db import get_db
+from app.core.rate_limit import enforce_rate_limit
 from app.core.security import (
     TokenError,
     create_oauth_state_token,
@@ -17,6 +18,23 @@ from app.schemas.auth import LogoutRequest, MobileExchangeRequest, RefreshReques
 from app.services.auth_service import AuthFlowError, AuthService
 
 router = APIRouter()
+
+
+def _allowed_mobile_redirect_uris() -> set[str]:
+    return {f"{settings.mobile_deep_link_scheme}://auth/callback"}
+
+
+def _validate_mobile_redirect_uri(value: str) -> str:
+    parsed = urlparse(value)
+    normalized = urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", "", ""))
+
+    if normalized not in _allowed_mobile_redirect_uris():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid mobile redirect URI",
+        )
+
+    return normalized
 
 
 def _append_query_param(url: str, key: str, value: str) -> str:
@@ -38,9 +56,18 @@ def _append_query_param(url: str, key: str, value: str) -> str:
 
 @router.get("/42/start")
 def start_oauth(
+    request: Request,
     mobile_redirect_uri: str | None = Query(default=None),
 ) -> RedirectResponse:
+    enforce_rate_limit(
+        request,
+        bucket="auth_start",
+        limit=settings.rate_limit_auth_start_per_minute,
+        window_seconds=60,
+    )
+
     redirect_target = mobile_redirect_uri or f"{settings.mobile_deep_link_scheme}://auth/callback"
+    redirect_target = _validate_mobile_redirect_uri(redirect_target)
 
     state = create_oauth_state_token(
         mobile_redirect_uri=redirect_target,
@@ -78,6 +105,7 @@ async def oauth_callback(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid OAuth state",
         ) from exc
+    mobile_redirect_uri = _validate_mobile_redirect_uri(mobile_redirect_uri)
 
     try:
         provider_tokens = await AuthService.exchange_code_for_token(code)
@@ -94,9 +122,17 @@ async def oauth_callback(
 
 @router.post("/mobile/exchange", response_model=TokenPairResponse)
 def mobile_exchange(
+    request: Request,
     payload: MobileExchangeRequest,
     db: Session = Depends(get_db),
 ) -> TokenPairResponse:
+    enforce_rate_limit(
+        request,
+        bucket="auth_mobile_exchange",
+        limit=settings.rate_limit_auth_exchange_per_minute,
+        window_seconds=60,
+    )
+
     try:
         return AuthService.consume_mobile_auth_code_and_issue_tokens(db, payload.one_time_code)
     except AuthFlowError as exc:
@@ -105,9 +141,17 @@ def mobile_exchange(
 
 @router.post("/refresh", response_model=TokenPairResponse)
 def refresh_session(
+    request: Request,
     payload: RefreshRequest,
     db: Session = Depends(get_db),
 ) -> TokenPairResponse:
+    enforce_rate_limit(
+        request,
+        bucket="auth_refresh",
+        limit=settings.rate_limit_auth_refresh_per_minute,
+        window_seconds=60,
+    )
+
     try:
         return AuthService.rotate_refresh_token(db, payload.refresh_token)
     except AuthFlowError as exc:

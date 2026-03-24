@@ -5,7 +5,7 @@ from typing import Any
 from uuid import UUID
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -224,24 +224,39 @@ class AuthService:
         one_time_code: str,
     ) -> TokenPairResponse:
         code_hash = hash_refresh_token(one_time_code)
-        code = db.scalar(select(MobileAuthCode).where(MobileAuthCode.code_hash == code_hash))
+        now = now_utc()
 
-        if code is None:
+        claimed_user_id = db.scalar(
+            update(MobileAuthCode)
+            .where(
+                MobileAuthCode.code_hash == code_hash,
+                MobileAuthCode.used_at.is_(None),
+                MobileAuthCode.expires_at > now,
+            )
+            .values(used_at=now)
+            .returning(MobileAuthCode.user_id)
+        )
+
+        if claimed_user_id is None:
+            code = db.scalar(select(MobileAuthCode).where(MobileAuthCode.code_hash == code_hash))
+            if code is None:
+                raise AuthFlowError("Invalid one-time code")
+            if code.used_at is not None:
+                raise AuthFlowError("One-time code already used")
+            if _as_utc(code.expires_at) <= now:
+                raise AuthFlowError("One-time code expired")
             raise AuthFlowError("Invalid one-time code")
 
-        if code.used_at is not None:
-            raise AuthFlowError("One-time code already used")
-
-        if _as_utc(code.expires_at) <= now_utc():
-            raise AuthFlowError("One-time code expired")
-
-        user = db.get(User, code.user_id)
+        user = db.get(User, claimed_user_id)
         if user is None:
+            db.rollback()
             raise AuthFlowError("Invalid one-time code user")
 
-        code.used_at = now_utc()
-        tokens = AuthService._build_token_pair(db, user)
-        return tokens
+        try:
+            return AuthService._build_token_pair(db, user)
+        except Exception:
+            db.rollback()
+            raise
 
     @staticmethod
     def rotate_refresh_token(db: Session, refresh_token: str) -> TokenPairResponse:

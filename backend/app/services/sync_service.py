@@ -4,6 +4,9 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import desc, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -36,9 +39,7 @@ def _as_utc(value: datetime) -> datetime:
     return value.astimezone(UTC)
 
 
-def can_run_manual_sync(db: Session, user_id, force: bool) -> bool:
-    if force:
-        return True
+def can_run_manual_sync(db: Session, user_id) -> bool:
 
     latest_manual_run = db.scalar(
         select(AttendanceSyncRun)
@@ -67,6 +68,24 @@ def _upsert_attendance_rows(
     updated = 0
     unchanged = 0
 
+    def _insert_stmt(values: dict):
+        bind = db.get_bind()
+        if bind is None:
+            raise SyncError("Database engine is unavailable")
+
+        table = AttendanceDaily.__table__
+        index_elements = [table.c.user_id, table.c.day]
+
+        if bind.dialect.name == "postgresql":
+            return pg_insert(table).values(**values).on_conflict_do_nothing(
+                index_elements=index_elements
+            )
+        if bind.dialect.name == "sqlite":
+            return sqlite_insert(table).values(**values).on_conflict_do_nothing(
+                index_elements=index_elements
+            )
+        raise SyncError(f"Unsupported database dialect for attendance upsert: {bind.dialect.name}")
+
     for day_text, duration_raw in payload.items():
         try:
             parsed_day = date.fromisoformat(day_text)
@@ -78,24 +97,28 @@ def _upsert_attendance_rows(
         except ValueError as exc:
             raise SyncError(f"Invalid duration for {day_text}: {duration_raw}") from exc
 
+        source_updated_at = now_utc()
+        insert_values = {
+            "user_id": user_id,
+            "day": parsed_day,
+            "duration_seconds": parsed_seconds,
+            "source_value_raw": duration_raw,
+            "updated_from_source_at": source_updated_at,
+        }
+
+        inserted_row = db.execute(_insert_stmt(insert_values))
+        if inserted_row.rowcount == 1:
+            inserted += 1
+            continue
+
         existing = db.scalar(
             select(AttendanceDaily).where(
                 AttendanceDaily.user_id == user_id,
                 AttendanceDaily.day == parsed_day,
             )
         )
-
         if existing is None:
-            new_row = AttendanceDaily(
-                user_id=user_id,
-                day=parsed_day,
-                duration_seconds=parsed_seconds,
-                source_value_raw=duration_raw,
-                updated_from_source_at=now_utc(),
-            )
-            db.add(new_row)
-            inserted += 1
-            continue
+            raise SyncError("Attendance upsert conflict: row disappeared after conflict handling")
 
         if (
             existing.duration_seconds == parsed_seconds
@@ -106,7 +129,7 @@ def _upsert_attendance_rows(
 
         existing.duration_seconds = parsed_seconds
         existing.source_value_raw = duration_raw
-        existing.updated_from_source_at = now_utc()
+        existing.updated_from_source_at = source_updated_at
         updated += 1
 
     return inserted, updated, unchanged
@@ -144,7 +167,7 @@ def sync_user_attendance(db: Session, user: User, trigger: str) -> SyncStats:
             started_at=run.started_at,
             finished_at=run.finished_at,
         )
-    except (FortyTwoClientError, SyncError) as exc:
+    except (FortyTwoClientError, SyncError, IntegrityError) as exc:
         db.rollback()
 
         failed_run = db.get(AttendanceSyncRun, run.id)

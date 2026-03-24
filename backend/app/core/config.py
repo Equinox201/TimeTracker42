@@ -48,6 +48,50 @@ class Settings(BaseSettings):
     mobile_deep_link_scheme: str = Field(default="timetracker42", alias="MOBILE_DEEP_LINK_SCHEME")
     sync_cooldown_minutes: int = Field(default=5, alias="SYNC_COOLDOWN_MINUTES")
     stale_warning_hours: int = Field(default=3, alias="STALE_WARNING_HOURS")
+    rate_limit_auth_start_per_minute: int = Field(default=20, alias="RATE_LIMIT_AUTH_START_PER_MINUTE")
+    rate_limit_auth_exchange_per_minute: int = Field(
+        default=10,
+        alias="RATE_LIMIT_AUTH_EXCHANGE_PER_MINUTE",
+    )
+    rate_limit_auth_refresh_per_minute: int = Field(
+        default=30,
+        alias="RATE_LIMIT_AUTH_REFRESH_PER_MINUTE",
+    )
+    rate_limit_sync_manual_per_minute: int = Field(
+        default=6,
+        alias="RATE_LIMIT_SYNC_MANUAL_PER_MINUTE",
+    )
+
+    def validate_runtime_security(self) -> None:
+        env = self.app_env.strip().lower()
+        if env in {"local", "test", "testing"}:
+            return
+
+        placeholder_values = {"", "change_me", "dev-change-me"}
+        errors: list[str] = []
+
+        def require_secret(name: str, value: str, min_length: int) -> None:
+            normalized = value.strip()
+            if normalized in placeholder_values:
+                errors.append(f"{name} must not use a placeholder value in APP_ENV={self.app_env}")
+                return
+            if len(normalized) < min_length:
+                errors.append(
+                    f"{name} is too short for APP_ENV={self.app_env} "
+                    f"(minimum {min_length} characters)"
+                )
+
+        require_secret("JWT_SECRET", self.jwt_secret, min_length=32)
+        require_secret("TOKEN_ENCRYPTION_KEY", self.token_encryption_key, min_length=32)
+        require_secret("FORTYTWO_CLIENT_SECRET", self.fortytwo_client_secret, min_length=24)
+
+        client_id = self.fortytwo_client_id.strip()
+        if client_id in placeholder_values:
+            errors.append(f"FORTYTWO_CLIENT_ID must not use a placeholder value in APP_ENV={self.app_env}")
+
+        if errors:
+            joined = "; ".join(errors)
+            raise RuntimeError(f"Invalid runtime security configuration: {joined}")
 
 
 @lru_cache(maxsize=1)

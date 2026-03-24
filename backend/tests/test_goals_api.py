@@ -1,8 +1,9 @@
 from datetime import date
 
 
-def test_goals_default_and_upsert(client) -> None:
-    get_default = client.get("/api/v1/goals/current", headers={"X-Demo-User": "alice"})
+def test_goals_default_and_upsert(client, make_auth_headers) -> None:
+    headers, _ = make_auth_headers(login="alice", forty_two_user_id=4242, display_name="Alice")
+    get_default = client.get("/api/v1/goals/current", headers=headers)
 
     assert get_default.status_code == 200
     assert get_default.json()["monthly_goal_seconds"] == 90 * 3600
@@ -19,13 +20,18 @@ def test_goals_default_and_upsert(client) -> None:
     updated = client.put(
         "/api/v1/goals/current",
         json=update_payload,
-        headers={"X-Demo-User": "alice"},
+        headers=headers,
     )
     assert updated.status_code == 200
     assert updated.json()["daily_goal_seconds"] == 3 * 3600
     assert updated.json()["monthly_goal_seconds"] == 95 * 3600
     assert updated.json()["pace_mode"] == "weekdays"
 
-    fetched = client.get("/api/v1/goals/current", headers={"X-Demo-User": "alice"})
+    fetched = client.get("/api/v1/goals/current", headers=headers)
     assert fetched.status_code == 200
     assert fetched.json()["monthly_goal_seconds"] == 95 * 3600
+
+
+def test_goals_requires_authorization(client) -> None:
+    response = client.get("/api/v1/goals/current")
+    assert response.status_code == 401

@@ -3,18 +3,10 @@ from datetime import UTC, date, datetime, timedelta
 from app.models.attendance_daily import AttendanceDaily
 from app.models.goal import Goal
 from app.models.sync_run import AttendanceSyncRun
-from app.models.user import User
 
 
-def test_dashboard_summary(client, db_session) -> None:
-    user = User(
-        forty_two_user_id=4242,
-        login="alice",
-        display_name="Alice",
-    )
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
+def test_dashboard_summary(client, db_session, make_auth_headers) -> None:
+    headers, user = make_auth_headers(login="alice", forty_two_user_id=4242, display_name="Alice")
 
     goal = Goal(
         user_id=user.id,
@@ -53,7 +45,7 @@ def test_dashboard_summary(client, db_session) -> None:
     )
     db_session.commit()
 
-    response = client.get("/api/v1/dashboard/summary", headers={"X-Demo-User": "alice"})
+    response = client.get("/api/v1/dashboard/summary", headers=headers)
     assert response.status_code == 200
 
     data = response.json()

@@ -4,18 +4,10 @@ from datetime import UTC, date, datetime, timedelta
 
 from app.models.attendance_daily import AttendanceDaily
 from app.models.sync_run import AttendanceSyncRun
-from app.models.user import User
 
 
-def test_attendance_history_returns_days_and_totals(client, db_session) -> None:
-    user = User(
-        forty_two_user_id=4242,
-        login="alice",
-        display_name="Alice",
-    )
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
+def test_attendance_history_returns_days_and_totals(client, db_session, make_auth_headers) -> None:
+    headers, user = make_auth_headers(login="alice", forty_two_user_id=4242, display_name="Alice")
 
     today = date.today()
     yesterday = today - timedelta(days=1)
@@ -49,7 +41,7 @@ def test_attendance_history_returns_days_and_totals(client, db_session) -> None:
 
     response = client.get(
         f"/api/v1/attendance/history?from={yesterday.isoformat()}&to={today.isoformat()}",
-        headers={"X-Demo-User": "alice"},
+        headers=headers,
     )
 
     assert response.status_code == 200
@@ -68,15 +60,8 @@ def test_attendance_history_returns_days_and_totals(client, db_session) -> None:
     assert payload["days"][1]["hours"] == 0.5
 
 
-def test_attendance_history_fills_missing_days(client, db_session) -> None:
-    user = User(
-        forty_two_user_id=4242,
-        login="bob",
-        display_name="Bob",
-    )
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
+def test_attendance_history_fills_missing_days(client, db_session, make_auth_headers) -> None:
+    headers, user = make_auth_headers(login="bob", forty_two_user_id=4243, display_name="Bob")
 
     start = date.today() - timedelta(days=2)
     end = date.today()
@@ -113,7 +98,7 @@ def test_attendance_history_fills_missing_days(client, db_session) -> None:
 
     response = client.get(
         f"/api/v1/attendance/history?from={start.isoformat()}&to={end.isoformat()}",
-        headers={"X-Demo-User": "bob"},
+        headers=headers,
     )
     assert response.status_code == 200
 
@@ -127,10 +112,11 @@ def test_attendance_history_fills_missing_days(client, db_session) -> None:
     assert payload["days"][1]["hours"] == 0.0
 
 
-def test_attendance_history_rejects_invalid_date_range(client) -> None:
+def test_attendance_history_rejects_invalid_date_range(client, make_auth_headers) -> None:
+    headers, _ = make_auth_headers(login="carol", forty_two_user_id=4244, display_name="Carol")
     response = client.get(
         "/api/v1/attendance/history?from=2026-03-23&to=2026-03-01",
-        headers={"X-Demo-User": "alice"},
+        headers=headers,
     )
     assert response.status_code == 400
     assert "from" in response.json()["detail"]

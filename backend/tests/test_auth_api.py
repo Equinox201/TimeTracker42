@@ -27,6 +27,34 @@ def test_auth_start_redirects_to_42_authorize_url(client) -> None:
     assert "state" in query
 
 
+def test_auth_start_rejects_unallowlisted_mobile_redirect(client) -> None:
+    response = client.get(
+        "/api/v1/auth/42/start",
+        params={"mobile_redirect_uri": "https://evil.example/callback"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid mobile redirect URI"
+
+
+def test_auth_callback_rejects_unallowlisted_state_redirect(client) -> None:
+    state = create_oauth_state_token(
+        mobile_redirect_uri="https://evil.example/callback",
+        secret=settings.jwt_secret,
+        ttl_minutes=settings.oauth_state_ttl_minutes,
+    )
+
+    callback = client.get(
+        "/api/v1/auth/42/callback",
+        params={"code": "provider_code", "state": state},
+        follow_redirects=False,
+    )
+
+    assert callback.status_code == 400
+    assert callback.json()["detail"] == "Invalid mobile redirect URI"
+
+
 def test_auth_callback_exchange_refresh_logout_flow(client, db_session, monkeypatch) -> None:
     async def fake_exchange_code_for_token(code: str):
         assert code == "provider_code"
@@ -85,6 +113,13 @@ def test_auth_callback_exchange_refresh_logout_flow(client, db_session, monkeypa
         json={"one_time_code": one_time_code},
     )
     assert exchange.status_code == 200
+
+    second_exchange = client.post(
+        "/api/v1/auth/mobile/exchange",
+        json={"one_time_code": one_time_code},
+    )
+    assert second_exchange.status_code == 401
+    assert second_exchange.json()["detail"] == "One-time code already used"
 
     access_token = exchange.json()["access_token"]
     refresh_token = exchange.json()["refresh_token"]
