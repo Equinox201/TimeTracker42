@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
@@ -10,6 +12,7 @@ from app.schemas.sync import ManualSyncResponse
 from app.services.sync_service import SyncError, can_run_manual_sync, sync_user_attendance
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post("/manual", response_model=ManualSyncResponse)
@@ -38,7 +41,11 @@ def manual_sync(
     try:
         stats = sync_user_attendance(db, current_user, trigger="manual")
     except SyncError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+        logger.warning("manual_sync_failed user_id=%s error_type=%s", current_user.id, type(exc).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Attendance sync failed. Please try again shortly.",
+        ) from exc
 
     return ManualSyncResponse(
         sync_run_id=stats.sync_run_id,

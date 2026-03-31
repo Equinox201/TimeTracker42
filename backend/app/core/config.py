@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     )
 
     mobile_deep_link_scheme: str = Field(default="timetracker42", alias="MOBILE_DEEP_LINK_SCHEME")
+    web_oauth_redirect_uris: str = Field(default="", alias="WEB_OAUTH_REDIRECT_URIS")
+    web_allowed_origins: str = Field(
+        default="http://127.0.0.1:5173,http://localhost:5173",
+        alias="WEB_ALLOWED_ORIGINS",
+    )
     sync_cooldown_minutes: int = Field(default=5, alias="SYNC_COOLDOWN_MINUTES")
     stale_warning_hours: int = Field(default=3, alias="STALE_WARNING_HOURS")
     rate_limit_auth_start_per_minute: int = Field(default=20, alias="RATE_LIMIT_AUTH_START_PER_MINUTE")

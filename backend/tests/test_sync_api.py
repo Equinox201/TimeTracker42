@@ -5,7 +5,7 @@ from datetime import date, timedelta
 from app.core.security import now_utc
 from app.models.attendance_daily import AttendanceDaily
 from app.models.sync_run import AttendanceSyncRun
-from app.services.fortytwo_client import FortyTwoClient
+from app.services.fortytwo_client import FortyTwoClient, FortyTwoClientError
 
 
 def test_manual_sync_inserts_and_then_hits_cooldown(client, db_session, monkeypatch, make_auth_headers) -> None:
@@ -115,3 +115,26 @@ def test_manual_sync_respects_cooldown(client, db_session, monkeypatch, make_aut
     response = client.post("/api/v1/sync/manual", headers=headers)
     assert response.status_code == 429
     assert "cooldown" in response.json()["detail"].lower()
+
+
+def test_manual_sync_does_not_leak_upstream_error_details(
+    client,
+    monkeypatch,
+    make_auth_headers,
+) -> None:
+    headers, _ = make_auth_headers(login="dana", forty_two_user_id=4245, display_name="Dana")
+
+    def fake_fetch_locations_stats(_db, _user):
+        raise FortyTwoClientError(
+            "42 locations_stats request failed (status=403, user_identifier=dana, body={'error':'forbidden'})"
+        )
+
+    monkeypatch.setattr(FortyTwoClient, "fetch_locations_stats", fake_fetch_locations_stats)
+
+    response = client.post("/api/v1/sync/manual", headers=headers)
+    assert response.status_code == 502
+
+    detail = response.json()["detail"]
+    assert detail == "Attendance sync failed. Please try again shortly."
+    assert "user_identifier" not in detail
+    assert "forbidden" not in detail

@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --tt42-magenta: #ff0f8a;
+  --tt42-mint: #35e0b5;
+  --tt42-teal: #11a7c4;
+
+  --tt42-bg: #f4f6fb;
+  --tt42-surface: #ffffff;
+  --tt42-surface-2: #eef2f9;
+  --tt42-text: #0f1725;
+  --tt42-text-muted: #4f5c73;
+  --tt42-border: #d4dceb;
+  --tt42-success: #15c281;
+  --tt42-danger: #ef476f;
+}
+
+:root.dark {
+  --tt42-bg: #0b0d10;
+  --tt42-surface: #151922;
+  --tt42-surface-2: #1c2230;
+  --tt42-text: #f4f7fb;
+  --tt42-text-muted: #a9b3c7;
+  --tt42-border: #2a3244;
+  --tt42-success: #2ad48f;
+  --tt42-danger: #ff5c7a;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--tt42-bg);
+  color: var(--tt42-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}

@@ -38,6 +38,20 @@ def test_auth_start_rejects_unallowlisted_mobile_redirect(client) -> None:
     assert response.json()["detail"] == "Invalid mobile redirect URI"
 
 
+def test_auth_start_accepts_allowlisted_web_redirect(client, monkeypatch) -> None:
+    web_redirect = "https://timetracker42-web.example.com/auth/callback"
+    monkeypatch.setattr(settings, "web_oauth_redirect_uris", web_redirect)
+
+    response = client.get(
+        "/api/v1/auth/42/start",
+        params={"mobile_redirect_uri": web_redirect},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    assert response.headers["location"].startswith(settings.fortytwo_oauth_authorize_url)
+
+
 def test_auth_callback_rejects_unallowlisted_state_redirect(client) -> None:
     state = create_oauth_state_token(
         mobile_redirect_uri="https://evil.example/callback",
@@ -53,6 +67,55 @@ def test_auth_callback_rejects_unallowlisted_state_redirect(client) -> None:
 
     assert callback.status_code == 400
     assert callback.json()["detail"] == "Invalid mobile redirect URI"
+
+
+def test_auth_callback_accepts_allowlisted_web_state_redirect(client, monkeypatch) -> None:
+    web_redirect = "https://timetracker42-web.example.com/auth/callback"
+    monkeypatch.setattr(settings, "web_oauth_redirect_uris", web_redirect)
+
+    async def fake_exchange_code_for_token(code: str):
+        assert code == "provider_code"
+
+        return type(
+            "TokenResponse",
+            (),
+            {
+                "access_token": "provider_access",
+                "refresh_token": "provider_refresh",
+                "expires_in": 7200,
+                "scope": "public",
+            },
+        )()
+
+    async def fake_fetch_user_profile(access_token: str):
+        assert access_token == "provider_access"
+
+        return type(
+            "Profile",
+            (),
+            {
+                "id": 5555,
+                "login": "webuser",
+                "display_name": "Web User",
+            },
+        )()
+
+    monkeypatch.setattr(AuthService, "exchange_code_for_token", fake_exchange_code_for_token)
+    monkeypatch.setattr(AuthService, "fetch_user_profile", fake_fetch_user_profile)
+
+    state = create_oauth_state_token(
+        mobile_redirect_uri=web_redirect,
+        secret=settings.jwt_secret,
+        ttl_minutes=settings.oauth_state_ttl_minutes,
+    )
+
+    callback = client.get(
+        "/api/v1/auth/42/callback",
+        params={"code": "provider_code", "state": state},
+        follow_redirects=False,
+    )
+    assert callback.status_code == 302
+    assert callback.headers["location"].startswith(f"{web_redirect}?otc=")
 
 
 def test_auth_callback_exchange_refresh_logout_flow(client, db_session, monkeypatch) -> None:

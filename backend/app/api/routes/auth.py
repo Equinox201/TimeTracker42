@@ -21,7 +21,22 @@ router = APIRouter()
 
 
 def _allowed_mobile_redirect_uris() -> set[str]:
-    return {f"{settings.mobile_deep_link_scheme}://auth/callback"}
+    allowed = {f"{settings.mobile_deep_link_scheme}://auth/callback"}
+
+    for raw in settings.web_oauth_redirect_uris.split(","):
+        value = raw.strip()
+        if not value:
+            continue
+
+        parsed = urlparse(value)
+        if parsed.scheme not in {"https", "http"}:
+            continue
+
+        normalized = urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", "", ""))
+        if normalized:
+            allowed.add(normalized)
+
+    return allowed
 
 
 def _validate_mobile_redirect_uri(value: str) -> str:
