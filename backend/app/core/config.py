@@ -53,7 +53,10 @@ class Settings(BaseSettings):
     )
     sync_cooldown_minutes: int = Field(default=5, alias="SYNC_COOLDOWN_MINUTES")
     stale_warning_hours: int = Field(default=3, alias="STALE_WARNING_HOURS")
-    rate_limit_auth_start_per_minute: int = Field(default=20, alias="RATE_LIMIT_AUTH_START_PER_MINUTE")
+    rate_limit_auth_start_per_minute: int = Field(
+        default=20,
+        alias="RATE_LIMIT_AUTH_START_PER_MINUTE",
+    )
     rate_limit_auth_exchange_per_minute: int = Field(
         default=10,
         alias="RATE_LIMIT_AUTH_EXCHANGE_PER_MINUTE",
@@ -92,7 +95,10 @@ class Settings(BaseSettings):
 
         client_id = self.fortytwo_client_id.strip()
         if client_id in placeholder_values:
-            errors.append(f"FORTYTWO_CLIENT_ID must not use a placeholder value in APP_ENV={self.app_env}")
+            errors.append(
+                "FORTYTWO_CLIENT_ID must not use a placeholder value "
+                f"in APP_ENV={self.app_env}"
+            )
 
         if errors:
             joined = "; ".join(errors)

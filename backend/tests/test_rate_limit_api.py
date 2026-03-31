@@ -48,7 +48,11 @@ def test_mobile_exchange_rate_limited_before_auth_validation(client, monkeypatch
 
 
 def test_manual_sync_rate_limited_per_user(client, monkeypatch, make_auth_headers) -> None:
-    headers, _ = make_auth_headers(login="ratelimit-user", forty_two_user_id=5001, display_name="Rate User")
+    headers, _ = make_auth_headers(
+        login="ratelimit-user",
+        forty_two_user_id=5001,
+        display_name="Rate User",
+    )
     monkeypatch.setattr(settings, "rate_limit_sync_manual_per_minute", 1)
     monkeypatch.setattr(settings, "sync_cooldown_minutes", 0)
 

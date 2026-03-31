@@ -8,7 +8,12 @@ from app.models.sync_run import AttendanceSyncRun
 from app.services.fortytwo_client import FortyTwoClient, FortyTwoClientError
 
 
-def test_manual_sync_inserts_and_then_hits_cooldown(client, db_session, monkeypatch, make_auth_headers) -> None:
+def test_manual_sync_inserts_and_then_hits_cooldown(
+    client,
+    db_session,
+    monkeypatch,
+    make_auth_headers,
+) -> None:
     headers, user = make_auth_headers(login="alice", forty_two_user_id=4242, display_name="Alice")
     today = date.today()
     previous_day = today - timedelta(days=1)
@@ -54,8 +59,17 @@ def test_manual_sync_inserts_and_then_hits_cooldown(client, db_session, monkeypa
     assert today_row.source_value_raw == "01:30:00.000000"
 
 
-def test_manual_sync_updates_existing_day_row(client, db_session, monkeypatch, make_auth_headers) -> None:
-    headers, user = make_auth_headers(login="charlie", forty_two_user_id=4244, display_name="Charlie")
+def test_manual_sync_updates_existing_day_row(
+    client,
+    db_session,
+    monkeypatch,
+    make_auth_headers,
+) -> None:
+    headers, user = make_auth_headers(
+        login="charlie",
+        forty_two_user_id=4244,
+        display_name="Charlie",
+    )
     today = date.today()
     previous_day = today - timedelta(days=1)
 
@@ -126,7 +140,8 @@ def test_manual_sync_does_not_leak_upstream_error_details(
 
     def fake_fetch_locations_stats(_db, _user):
         raise FortyTwoClientError(
-            "42 locations_stats request failed (status=403, user_identifier=dana, body={'error':'forbidden'})"
+            "42 locations_stats request failed "
+            "(status=403, user_identifier=dana, body={'error':'forbidden'})"
         )
 
     monkeypatch.setattr(FortyTwoClient, "fetch_locations_stats", fake_fetch_locations_stats)

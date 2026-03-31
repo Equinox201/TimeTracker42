@@ -86,7 +86,10 @@ def attendance_history(
     else:
         if latest_successful_sync.tzinfo is None:
             latest_successful_sync = latest_successful_sync.replace(tzinfo=UTC)
-        stale_age_hours = round((datetime.now(UTC) - latest_successful_sync).total_seconds() / 3600, 2)
+        stale_age_hours = round(
+            (datetime.now(UTC) - latest_successful_sync).total_seconds() / 3600,
+            2,
+        )
         is_stale = stale_age_hours > settings.stale_warning_hours
         last_synced_at = latest_successful_sync
 

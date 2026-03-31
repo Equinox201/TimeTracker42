@@ -41,7 +41,11 @@ def manual_sync(
     try:
         stats = sync_user_attendance(db, current_user, trigger="manual")
     except SyncError as exc:
-        logger.warning("manual_sync_failed user_id=%s error_type=%s", current_user.id, type(exc).__name__)
+        logger.warning(
+            "manual_sync_failed user_id=%s error_type=%s",
+            current_user.id,
+            type(exc).__name__,
+        )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Attendance sync failed. Please try again shortly.",
