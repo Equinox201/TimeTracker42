@@ -40,19 +40,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg}"],
-        runtimeCaching: [
-          {
-            urlPattern: ({ url }) => url.pathname.includes("/api/"),
-            handler: "NetworkFirst",
-            options: {
-              cacheName: "tt42-api-cache",
-              expiration: {
-                maxEntries: 80,
-                maxAgeSeconds: 60 * 60
-              }
-            }
-          }
-        ]
+        runtimeCaching: []
       }
     })
   ],

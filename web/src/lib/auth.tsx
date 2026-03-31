@@ -14,7 +14,6 @@ type AuthContextValue = {
   signOut: () => Promise<void>;
 };
 
-const STORAGE_KEY = "tt42_web_session_v1";
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 function parseExpiry(isoValue: string): number {
@@ -39,29 +38,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, []);
 
   useEffect(() => {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      setStatus("ready");
-      return;
-    }
-
-    try {
-      const parsed = JSON.parse(raw) as SessionPayload;
-      setSession(parsed);
-    } catch {
-      window.localStorage.removeItem(STORAGE_KEY);
-    } finally {
-      setStatus("ready");
-    }
+    setStatus("ready");
   }, []);
 
   const persistSession = (next: SessionPayload | null) => {
     setSession(next);
-    if (!next) {
-      window.localStorage.removeItem(STORAGE_KEY);
-      return;
-    }
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   };
 
   const completeOAuthSignIn = async (oneTimeCode: string) => {

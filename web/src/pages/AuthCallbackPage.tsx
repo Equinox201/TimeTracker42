@@ -36,6 +36,10 @@ export function AuthCallbackPage() {
         }
         setErrorMessage(error instanceof Error ? error.message : "Sign-in failed.");
         setIsLoading(false);
+      } finally {
+        if (location.search) {
+          window.history.replaceState(null, "", location.pathname);
+        }
       }
     };
 
@@ -44,7 +48,7 @@ export function AuthCallbackPage() {
     return () => {
       cancelled = true;
     };
-  }, [completeOAuthSignIn, navigate, oneTimeCode]);
+  }, [completeOAuthSignIn, navigate, oneTimeCode, location.pathname, location.search]);
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-[520px] items-center px-4 py-10">
@@ -52,13 +56,7 @@ export function AuthCallbackPage() {
         <h1 className="text-2xl font-semibold">Signing you in…</h1>
         <p className="mt-2 text-sm text-tt42-muted">Exchanging one-time code with backend.</p>
 
-        <div className="mt-4 rounded-xl border border-tt42-border bg-tt42-surface2 p-3 text-xs break-all text-tt42-muted">
-          OTC: {oneTimeCode || "(missing)"}
-        </div>
-
-        {isLoading ? (
-          <p className="mt-4 text-sm text-tt42-muted">Please wait…</p>
-        ) : null}
+        {isLoading ? <p className="mt-4 text-sm text-tt42-muted">Please wait…</p> : null}
 
         {errorMessage ? (
           <div className="mt-4 rounded-xl border border-tt42-danger/40 bg-tt42-danger/10 p-3 text-sm text-tt42-danger">
