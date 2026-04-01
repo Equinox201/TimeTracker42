@@ -24,3 +24,8 @@ DerivedData/
 # Build outputs
 build/
 dist/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
