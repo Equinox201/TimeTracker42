@@ -2,7 +2,13 @@
 
 A full-stack attendance tracking platform built around the 42 API.
 
+Try out the website here: https://timetracker42.pages.dev/
+
 I built this project to solve a real personal problem: tracking campus attendance against monthly visa requirements (90h/month) with clear pacing, goals, and deadline visibility.
+
+## Preview
+
+![TimeTracker42 feature preview](assets/Feature_visual.png)
 
 ## Why This Project Exists
 
@@ -12,6 +18,27 @@ At 42, attendance data is the source of truth for progress and compliance. I wan
 - turns raw durations into meaningful KPIs and pace calculations
 - works on iPhone and mobile web
 - is architected to scale from one user to multiple users
+
+## Key Features
+
+- 🔐 Secure login via 42 OAuth (no credentials stored client-side)
+- 📊 Activity-style rings for daily, weekly, and monthly progress
+- 📅 Calendar visualization of attendance performance
+- 🎯 Dynamic goal adjustment based on remaining time
+- 🔄 Sync with 42 API + persistent storage
+- 📉 Historical trends and monthly comparisons
+- ⚠️ Stale data detection and sync indicators
+- 📱 Mobile-first design (iOS app + PWA)
+
+## Architecture
+
+```text
+[iOS SwiftUI App] ----\
+                       -> [FastAPI Backend] -> [42 API]
+[React Web App]  -----/          |
+                                 v
+                           [PostgreSQL]
+```
 
 ## What I Built
 
@@ -50,16 +77,6 @@ At 42, attendance data is the source of truth for progress and compliance. I wan
 - Endpoint rate limiting on auth + sync routes
 - Runtime validation to reject placeholder secrets in non-local envs
 - Stale data detection based on last successful sync
-
-## Architecture (High Level)
-
-```text
-[iOS SwiftUI App] ----\
-                       -> [FastAPI Backend] -> [42 API]
-[React Web App]  -----/          |
-                                 v
-                           [PostgreSQL]
-```
 
 ## Tech Stack
 
@@ -180,15 +197,6 @@ iOS build:
 ```bash
 xcodebuild -project ios/CampusTracker.xcodeproj -scheme CampusTracker -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build
 ```
-
-## What This Demonstrates (Recruiter View)
-
-- Product thinking from real-user problem to shipped features
-- End-to-end ownership across backend, iOS, and web
-- OAuth and session security implementation in practice
-- Data modeling, sync design, and KPI/business logic implementation
-- Mobile-first UI execution with reusable components
-- Iterative hardening, QA, and release-readiness work
 
 ## Current Status
 
