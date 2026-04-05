@@ -11,9 +11,6 @@ struct AttendanceHistoryView: View {
     @State private var errorMessage: String?
     @State private var lastAutoRefreshAt: Date?
 
-    @AppStorage("ui_daily_goal_hours") private var localDailyGoalHours = 6.0
-    @AppStorage("ui_weekly_goal_hours") private var localWeeklyGoalHours = 22.5
-
     var body: some View {
         NavigationStack {
             ZStack {
@@ -44,6 +41,17 @@ struct AttendanceHistoryView: View {
                                     message: staleMessage(for: history)
                                 )
 
+                                if history.todayIsLive {
+                                    Text("Today’s calendar entry includes live campus time and may change until the session closes.")
+                                        .font(.footnote)
+                                        .foregroundStyle(.primary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.horizontal, TT42Spacing.small)
+                                        .padding(.vertical, TT42Spacing.small)
+                                        .background(TT42Palette.cyan.opacity(0.12))
+                                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                }
+
                                 VStack(alignment: .leading, spacing: TT42Spacing.small) {
                                     TT42SectionHeader("Monthly Totals", subtitle: "Last 6 months")
 
@@ -71,11 +79,11 @@ struct AttendanceHistoryView: View {
 
                                 AttendanceMonthCalendarView(
                                     month: selectedMonth,
-                                    dailyGoal: localDailyGoalHours,
+                                    dailyGoal: currentDailyGoal,
                                     weekGoalAchievements: achievedWeekStarts(
                                         from: history.days,
                                         month: selectedMonth,
-                                        weeklyGoal: localWeeklyGoalHours
+                                        weeklyGoal: currentWeeklyGoal
                                     ),
                                     entriesByDate: attendanceByDate(selectedMonthDays)
                                 )
@@ -150,6 +158,7 @@ struct AttendanceHistoryView: View {
             if forceSync {
                 try? await appState.apiClient.triggerManualSync(accessToken: accessToken, force: true)
             }
+            _ = try? await appState.refreshGoalSettings()
 
             let loadedHistory = try await appState.apiClient.getAttendanceHistory(
                 accessToken: accessToken,
@@ -223,8 +232,8 @@ struct AttendanceHistoryView: View {
     private func monthSummaryCard(days: [AttendanceHistoryDay]) -> some View {
         let totalHours = days.reduce(0) { $0 + $1.hours }
         let recordedDays = days.filter(\.hasRecord).count
-        let achievedDays = days.filter { $0.hours >= localDailyGoalHours && localDailyGoalHours > 0 }.count
-        let weekHits = achievedWeekStarts(from: days, month: selectedMonth, weeklyGoal: localWeeklyGoalHours).count
+        let achievedDays = days.filter { $0.hours >= currentDailyGoal && currentDailyGoal > 0 }.count
+        let weekHits = achievedWeekStarts(from: days, month: selectedMonth, weeklyGoal: currentWeeklyGoal).count
 
         return VStack(alignment: .leading, spacing: TT42Spacing.small) {
             TT42SectionHeader("Month Summary")
@@ -235,6 +244,14 @@ struct AttendanceHistoryView: View {
             row("Weekly goals hit", "\(weekHits)")
         }
         .tt42CardStyle()
+    }
+
+    private var currentDailyGoal: Double {
+        appState.goalSettings?.dailyGoalHours ?? 0
+    }
+
+    private var currentWeeklyGoal: Double {
+        appState.goalSettings?.weeklyGoalHours ?? 0
     }
 
     private func monthPicker(points: [MonthlyAttendancePoint]) -> some View {

@@ -1,9 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   differenceInCalendarDays,
-  endOfMonth,
   format,
-  isBefore,
   parseISO,
   startOfDay,
   startOfMonth
@@ -23,9 +21,14 @@ import {
 } from "../lib/api/settingsApi";
 import { useAuth } from "../lib/auth";
 import { hoursToReadable, monthYearLabel } from "../lib/formatters";
+import {
+  buildRecommendedPace,
+  deriveGoalDraft,
+  formatGoalInput,
+  type GoalInputMode,
+  type PaceMode
+} from "../lib/goalMath";
 import { useTheme } from "../lib/theme";
-
-const DAYS_PER_WEEK_KEY = "tt42_days_attended_per_week";
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -48,23 +51,6 @@ function asNumber(input: string, fallback: number): number {
 
 function toISODate(date: Date): string {
   return format(date, "yyyy-MM-dd");
-}
-
-function remainingDaysInMonth(weekdaysOnly: boolean): number {
-  const today = startOfDay(new Date());
-  const monthEnd = endOfMonth(today);
-
-  let cursor = today;
-  let count = 0;
-  while (!isBefore(monthEnd, cursor)) {
-    const day = cursor.getDay();
-    const isWeekday = day !== 0 && day !== 6;
-    if (!weekdaysOnly || isWeekday) {
-      count += 1;
-    }
-    cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 1);
-  }
-  return Math.max(count, 1);
 }
 
 function deadlinePace(deadline: Deadline, baselineHours: number): { hoursLeft: number; daysLeft: number; requiredPerDay: number } {
@@ -94,11 +80,8 @@ export function SettingsPage() {
   const [weeklyGoalInput, setWeeklyGoalInput] = useState("22.5");
   const [dailyGoalInput, setDailyGoalInput] = useState("6");
   const [weekdaysOnly, setWeekdaysOnly] = useState(false);
-  const [daysPerWeek, setDaysPerWeek] = useState<number>(() => {
-    const raw = window.localStorage.getItem(DAYS_PER_WEEK_KEY);
-    const value = Number(raw);
-    return Number.isFinite(value) ? clamp(Math.round(value), 1, 7) : 5;
-  });
+  const [daysPerWeek, setDaysPerWeek] = useState(5);
+  const [goalInputMode, setGoalInputMode] = useState<GoalInputMode>("monthly");
 
   const [newDeadlineTitle, setNewDeadlineTitle] = useState("");
   const [newDeadlineDate, setNewDeadlineDate] = useState(toISODate(new Date()));
@@ -160,38 +143,63 @@ export function SettingsPage() {
     setWeeklyGoalInput(String(payload.weeklyGoalHours));
     setDailyGoalInput(String(payload.dailyGoalHours));
     setWeekdaysOnly(payload.paceMode === "weekdays");
+    setDaysPerWeek(payload.daysPerWeek);
+    setGoalInputMode("monthly");
   }, [goalsQuery.data]);
-
-  useEffect(() => {
-    window.localStorage.setItem(DAYS_PER_WEEK_KEY, String(daysPerWeek));
-  }, [daysPerWeek]);
 
   const monthlyGoalHours = asNumber(monthlyGoalInput, 90);
   const weeklyGoalHours = asNumber(weeklyGoalInput, 22.5);
   const dailyGoalHours = asNumber(dailyGoalInput, 6);
   const monthlyHoursSoFar = dashboardQuery.data?.hoursMonth ?? 0;
+  const currentPaceMode: PaceMode = weekdaysOnly ? "weekdays" : "calendar_days";
+  const effectiveFrom = startOfMonth(new Date());
 
   const recommendation = useMemo(() => {
-    const targetDays = remainingDaysInMonth(weekdaysOnly);
-    const recDaily = monthlyGoalHours / targetDays;
-    const recWeekly = recDaily * clamp(daysPerWeek, 1, 7);
+    return buildRecommendedPace({
+      monthlyGoalHours,
+      monthlyHoursSoFar,
+      paceMode: currentPaceMode,
+      daysPerWeek,
+      fromDate: new Date()
+    });
+  }, [currentPaceMode, daysPerWeek, monthlyGoalHours, monthlyHoursSoFar]);
 
-    return {
-      targetDays,
-      recDaily,
-      recWeekly
-    };
-  }, [daysPerWeek, monthlyGoalHours, weekdaysOnly]);
+  function applyDerivedDraft(inputMode: GoalInputMode, inputHours: number, nextPaceMode = currentPaceMode, nextDaysPerWeek = daysPerWeek) {
+    const draft = deriveGoalDraft({
+      inputMode,
+      inputGoalHours: inputHours,
+      paceMode: nextPaceMode,
+      daysPerWeek: nextDaysPerWeek,
+      effectiveFrom
+    });
+
+    setGoalInputMode(inputMode);
+    setMonthlyGoalInput(formatGoalInput(draft.monthlyGoalHours));
+    setWeeklyGoalInput(formatGoalInput(draft.weeklyGoalHours));
+    setDailyGoalInput(formatGoalInput(draft.dailyGoalHours));
+    setWeekdaysOnly(draft.paceMode === "weekdays");
+    setDaysPerWeek(draft.daysPerWeek);
+  }
+
+  function currentGoalInputValue(mode: GoalInputMode): number {
+    if (mode === "daily") {
+      return dailyGoalHours;
+    }
+    if (mode === "weekly") {
+      return weeklyGoalHours;
+    }
+    return monthlyGoalHours;
+  }
 
   const saveGoalsMutation = useMutation({
     mutationFn: async () => {
       const accessToken = await validAccessToken();
       return upsertCurrentGoals(accessToken, {
-        monthlyGoalHours,
-        weeklyGoalHours,
-        dailyGoalHours,
-        paceMode: weekdaysOnly ? "weekdays" : "calendar_days",
-        effectiveFrom: toISODate(startOfMonth(new Date()))
+        inputMode: goalInputMode,
+        inputGoalHours: currentGoalInputValue(goalInputMode),
+        paceMode: currentPaceMode,
+        daysPerWeek,
+        effectiveFrom: toISODate(effectiveFrom)
       });
     },
     onSuccess: async () => {
@@ -305,7 +313,7 @@ export function SettingsPage() {
               min={0}
               step="0.5"
               value={monthlyGoalInput}
-              onChange={(event) => setMonthlyGoalInput(event.target.value)}
+              onChange={(event) => applyDerivedDraft("monthly", asNumber(event.target.value, 0))}
               className="h-11 w-full rounded-lg border border-tt42-border bg-tt42-surface2 px-3"
             />
           </label>
@@ -317,7 +325,7 @@ export function SettingsPage() {
               min={0}
               step="0.5"
               value={weeklyGoalInput}
-              onChange={(event) => setWeeklyGoalInput(event.target.value)}
+              onChange={(event) => applyDerivedDraft("weekly", asNumber(event.target.value, 0))}
               className="h-11 w-full rounded-lg border border-tt42-border bg-tt42-surface2 px-3"
             />
           </label>
@@ -329,7 +337,7 @@ export function SettingsPage() {
               min={0}
               step="0.25"
               value={dailyGoalInput}
-              onChange={(event) => setDailyGoalInput(event.target.value)}
+              onChange={(event) => applyDerivedDraft("daily", asNumber(event.target.value, 0))}
               className="h-11 w-full rounded-lg border border-tt42-border bg-tt42-surface2 px-3"
             />
           </label>
@@ -342,7 +350,14 @@ export function SettingsPage() {
               type="button"
               role="switch"
               aria-checked={weekdaysOnly}
-              onClick={() => setWeekdaysOnly((prev) => !prev)}
+              onClick={() =>
+                applyDerivedDraft(
+                  goalInputMode,
+                  currentGoalInputValue(goalInputMode),
+                  weekdaysOnly ? "calendar_days" : "weekdays",
+                  daysPerWeek
+                )
+              }
               className={[
                 "inline-flex h-7 w-14 items-center rounded-full border px-1 transition",
                 weekdaysOnly ? "border-tt42-mint bg-tt42-mint/25" : "border-tt42-border bg-tt42-surface"
@@ -366,7 +381,14 @@ export function SettingsPage() {
                 max={7}
                 step={1}
                 value={daysPerWeek}
-                onChange={(event) => setDaysPerWeek(clamp(Number(event.target.value), 1, 7))}
+                onChange={(event) =>
+                  applyDerivedDraft(
+                    goalInputMode,
+                    currentGoalInputValue(goalInputMode),
+                    currentPaceMode,
+                    clamp(Number(event.target.value), 1, 7)
+                  )
+                }
                 className="w-full accent-tt42-magenta"
               />
               <div className="mt-1 text-sm text-tt42-muted">{daysPerWeek} day(s) / week</div>
@@ -378,20 +400,21 @@ export function SettingsPage() {
           <p className="text-xs uppercase tracking-[0.15em] text-tt42-muted">Recalculated Guidance</p>
           <div className="mt-2 grid grid-cols-1 gap-2 text-sm text-tt42-muted sm:grid-cols-2">
             <p>Target days left this month: {recommendation.targetDays}</p>
-            <p>Recommended daily target: {hoursToReadable(recommendation.recDaily)}</p>
-            <p>Recommended weekly target: {hoursToReadable(recommendation.recWeekly)}</p>
+            <p>Remaining month target: {hoursToReadable(recommendation.remainingHours)}</p>
+            <p>Recommended daily pace: {hoursToReadable(recommendation.recDaily)}</p>
+            <p>Recommended weekly pace: {hoursToReadable(recommendation.recWeekly)}</p>
             <p>Current month hours: {hoursToReadable(monthlyHoursSoFar)}</p>
+            <p>Edited field: {goalInputMode}</p>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => {
-                setDailyGoalInput(String(Number(recommendation.recDaily.toFixed(2))));
-                setWeeklyGoalInput(String(Number(recommendation.recWeekly.toFixed(2))));
+                applyDerivedDraft("daily", recommendation.recDaily);
               }}
               className="rounded-lg border border-tt42-border bg-tt42-surface px-3 py-2 text-xs font-medium"
             >
-              Apply Recommended Daily + Weekly
+              Apply Recommended Daily Target
             </button>
           </div>
         </div>
@@ -414,6 +437,8 @@ export function SettingsPage() {
               setWeeklyGoalInput(String(payload.weeklyGoalHours));
               setDailyGoalInput(String(payload.dailyGoalHours));
               setWeekdaysOnly(payload.paceMode === "weekdays");
+              setDaysPerWeek(payload.daysPerWeek);
+              setGoalInputMode("monthly");
             }}
             className="h-10 rounded-lg border border-tt42-border bg-tt42-surface px-3 text-sm"
           >

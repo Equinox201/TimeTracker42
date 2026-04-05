@@ -12,12 +12,6 @@ struct DashboardView: View {
     @State private var lastAutoRefreshAt: Date?
     @State private var refreshRequestID = 0
 
-    @AppStorage("ui_daily_goal_hours") private var localDailyGoalHours = 6.0
-    @AppStorage("ui_weekly_goal_hours") private var localWeeklyGoalHours = 22.5
-    @AppStorage("ui_monthly_goal_hours") private var localMonthlyGoalHours = 90.0
-    @AppStorage("ui_pace_weekdays_only") private var useWeekdaysOnlyPace = false
-    @AppStorage("ui_days_attended_per_week") private var daysAttendedPerWeek = 5
-
     var body: some View {
         NavigationStack {
             ZStack {
@@ -44,6 +38,12 @@ struct DashboardView: View {
                                     isStale: summary.isStale,
                                     message: staleMessage(for: summary)
                                 )
+
+                                if summary.todayIsLive {
+                                    liveAttendanceBanner(
+                                        "Today includes a live campus session. Progress will finalize after the session closes."
+                                    )
+                                }
 
                                 ConcentricActivityRingsView(
                                     metrics: [
@@ -190,7 +190,7 @@ struct DashboardView: View {
         let weeklyGoal = displayedWeeklyGoal(fallback: summary.weeklyGoalHours)
         let monthlyGoal = displayedMonthlyGoal(fallback: summary.monthlyGoalHours)
         let remaining = remainingDaysInfo()
-        let paceValue = useWeekdaysOnlyPace
+        let paceValue = usesWeekdayPace
             ? summary.requiredHoursPerRemainingWeekday
             : summary.requiredHoursPerRemainingDay
 
@@ -198,7 +198,9 @@ struct DashboardView: View {
             TT42MetricCard(
                 title: "Today",
                 value: TimeFormatters.hoursToReadable(summary.hoursToday),
-                subtitle: "Goal \(TimeFormatters.hoursToReadable(dailyGoal))",
+                subtitle: summary.todayIsLive
+                    ? "Live now • finalized \(TimeFormatters.hoursToReadable(summary.hoursTodayFinalized))"
+                    : "Goal \(TimeFormatters.hoursToReadable(dailyGoal))",
                 tint: TT42Palette.cyan
             )
             TT42MetricCard(
@@ -216,7 +218,7 @@ struct DashboardView: View {
             TT42MetricCard(
                 title: "Required Pace",
                 value: "\(TimeFormatters.hoursToReadable(paceValue))/day",
-                subtitle: useWeekdaysOnlyPace ? "Using weekdays mode" : "Using all days mode",
+                subtitle: usesWeekdayPace ? "Using weekdays mode" : "Using all days mode",
                 tint: TT42Palette.darkTrack
             )
             TT42MetricCard(
@@ -243,9 +245,12 @@ struct DashboardView: View {
     private func plannerPreviewCard(summary: DashboardSummary) -> some View {
         let monthDays = max(daysInCurrentMonth(), 1)
         let weekdayDays = max(weekdaysInCurrentMonth(), 1)
-        let selectedDays = useWeekdaysOnlyPace ? weekdayDays : monthDays
-        let recommendedDaily = localMonthlyGoalHours / Double(selectedDays)
-        let recommendedWeekly = recommendedDaily * Double(max(daysAttendedPerWeek, 1))
+        let selectedDays = usesWeekdayPace ? weekdayDays : monthDays
+        let monthlyGoal = appState.goalSettings?.monthlyGoalHours ?? summary.monthlyGoalHours
+        let plannedDaysPerWeek = appState.goalSettings?.daysPerWeek ?? 5
+        let remainingMonthTarget = max(monthlyGoal - summary.hoursMonth, 0)
+        let recommendedDaily = remainingMonthTarget / Double(selectedDays)
+        let recommendedWeekly = recommendedDaily * Double(max(plannedDaysPerWeek, 1))
         let remaining = remainingDaysInfo()
 
         return VStack(alignment: .leading, spacing: TT42Spacing.small) {
@@ -254,10 +259,10 @@ struct DashboardView: View {
                 subtitle: "Saved settings currently applied"
             )
 
-            Text("Mode: \(useWeekdaysOnlyPace ? "Weekdays only" : "All days")")
+            Text("Mode: \(usesWeekdayPace ? "Weekdays only" : "All days")")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            Text("Configured goals: \(TimeFormatters.hoursToReadable(localDailyGoalHours)) / \(TimeFormatters.hoursToReadable(localWeeklyGoalHours)) / \(TimeFormatters.hoursToReadable(localMonthlyGoalHours))")
+            Text("Configured goals: \(TimeFormatters.hoursToReadable(displayedDailyGoal(fallback: summary.dailyGoalHours))) / \(TimeFormatters.hoursToReadable(displayedWeeklyGoal(fallback: summary.weeklyGoalHours))) / \(TimeFormatters.hoursToReadable(displayedMonthlyGoal(fallback: summary.monthlyGoalHours)))")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
@@ -282,16 +287,31 @@ struct DashboardView: View {
         .font(.subheadline)
     }
 
+    private func liveAttendanceBanner(_ text: String) -> some View {
+        Text(text)
+            .font(.footnote)
+            .foregroundStyle(.primary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, TT42Spacing.small)
+            .padding(.vertical, TT42Spacing.small)
+            .background(TT42Palette.cyan.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
     private func displayedDailyGoal(fallback: Double) -> Double {
-        localDailyGoalHours > 0 ? localDailyGoalHours : fallback
+        appState.goalSettings?.dailyGoalHours ?? fallback
     }
 
     private func displayedWeeklyGoal(fallback: Double) -> Double {
-        localWeeklyGoalHours > 0 ? localWeeklyGoalHours : fallback
+        appState.goalSettings?.weeklyGoalHours ?? fallback
     }
 
     private func displayedMonthlyGoal(fallback: Double) -> Double {
-        localMonthlyGoalHours > 0 ? localMonthlyGoalHours : fallback
+        appState.goalSettings?.monthlyGoalHours ?? fallback
+    }
+
+    private var usesWeekdayPace: Bool {
+        appState.goalSettings?.paceMode == .weekdays
     }
 
     private func attendanceByDate(from days: [AttendanceHistoryDay]) -> [Date: AttendanceCalendarDay] {
@@ -378,7 +398,7 @@ struct DashboardView: View {
             day = next
         }
 
-        let effective = useWeekdaysOnlyPace ? weekdaysLeft : calendarLeft
+        let effective = usesWeekdayPace ? weekdaysLeft : calendarLeft
         return (calendarLeft, weekdaysLeft, effective)
     }
 
@@ -410,6 +430,7 @@ struct DashboardView: View {
             }
 
             do {
+                _ = try? await appState.refreshGoalSettings()
                 try await loadDashboardData(accessToken: accessToken, requestID: requestID)
                 guard isCurrentRequest(requestID) else { return }
                 lastAutoRefreshAt = Date()

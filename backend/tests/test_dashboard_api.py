@@ -14,6 +14,7 @@ def test_dashboard_summary(client, db_session, make_auth_headers) -> None:
         weekly_goal_seconds=12 * 3600,
         monthly_goal_seconds=90 * 3600,
         pace_mode="calendar_days",
+        days_per_week=5,
         effective_from=date.today().replace(day=1),
         is_active=True,
     )
@@ -59,3 +60,29 @@ def test_dashboard_summary(client, db_session, make_auth_headers) -> None:
     assert data["is_stale"] is False
     assert data["stale_age_hours"] is not None
     assert data["last_synced_at"] is not None
+
+
+def test_dashboard_uses_unified_default_goals(client, db_session, make_auth_headers) -> None:
+    headers, user = make_auth_headers(
+        login="defaulted",
+        forty_two_user_id=4342,
+        display_name="Defaulted",
+    )
+    db_session.add(
+        AttendanceSyncRun(
+            user_id=user.id,
+            trigger="manual",
+            status="success",
+            started_at=datetime.now(UTC),
+            finished_at=datetime.now(UTC),
+        )
+    )
+    db_session.commit()
+
+    response = client.get("/api/v1/dashboard/summary", headers=headers)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["monthly_goal_hours"] == 90.0
+    assert data["daily_goal_hours"] > 0
+    assert data["weekly_goal_hours"] > 0

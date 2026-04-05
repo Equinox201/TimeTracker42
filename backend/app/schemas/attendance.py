@@ -19,4 +19,6 @@ class AttendanceHistoryResponse(BaseModel):
     is_stale: bool
     stale_age_hours: float | None
     last_synced_at: datetime | None
+    today_is_live: bool = False
+    live_checked_at: datetime | None = None
     days: list[AttendanceHistoryDay]

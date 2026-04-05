@@ -3,6 +3,8 @@ from pydantic import BaseModel
 
 class DashboardSummary(BaseModel):
     hours_today: float
+    hours_today_finalized: float
+    hours_today_live: float
     hours_week: float
     hours_month: float
     daily_goal_hours: float
@@ -17,3 +19,5 @@ class DashboardSummary(BaseModel):
     is_stale: bool
     stale_age_hours: float | None = None
     last_synced_at: str | None = None
+    today_is_live: bool = False
+    live_checked_at: str | None = None

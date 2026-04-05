@@ -233,6 +233,12 @@ export function MainPage() {
           lastSyncedAt={summary.lastSyncedAt}
         />
 
+        {summary.todayIsLive ? (
+          <div className="mt-3 rounded-xl border border-tt42-teal/35 bg-tt42-teal/10 px-3 py-2 text-sm text-tt42-text">
+            Today includes a live campus session. Current progress is provisional until the session closes.
+          </div>
+        ) : null}
+
         <div className="mt-4">
           <ConcentricProgressRings
             metrics={ringMetrics}
@@ -252,7 +258,11 @@ export function MainPage() {
         <MetricCard
           title="Today"
           value={hoursToReadable(summary.hoursToday)}
-          subtitle={`Goal ${hoursToReadable(summary.dailyGoalHours)}`}
+          subtitle={
+            summary.todayIsLive
+              ? `Live now • finalized ${hoursToReadable(summary.hoursTodayFinalized)}`
+              : `Goal ${hoursToReadable(summary.dailyGoalHours)}`
+          }
           tint="teal"
         />
         <MetricCard

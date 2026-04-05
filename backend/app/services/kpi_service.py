@@ -9,7 +9,10 @@ from sqlalchemy.orm import Session
 from app.models.attendance_daily import AttendanceDaily
 from app.models.goal import Goal
 from app.models.sync_run import AttendanceSyncRun
+from app.models.user import User
 from app.schemas.dashboard import DashboardSummary
+from app.services.goal_service import resolve_goal
+from app.services.live_attendance_service import build_live_today_overlay, current_user_day
 from app.services.metrics import calculate_monthly_pace
 
 
@@ -39,11 +42,11 @@ def _latest_successful_sync_finished_at(db: Session, user_id: UUID) -> datetime 
 
 def build_dashboard_summary(
     db: Session,
-    user_id: UUID,
+    user: User,
     stale_warning_hours: int,
     current_day: date | None = None,
 ) -> DashboardSummary:
-    today = current_day or date.today()
+    today = current_day or current_user_day(user)
     week_start = today - timedelta(days=today.weekday())
     week_end = week_start + timedelta(days=6)
 
@@ -56,7 +59,7 @@ def build_dashboard_summary(
 
     rows = db.scalars(
         select(AttendanceDaily).where(
-            AttendanceDaily.user_id == user_id,
+            AttendanceDaily.user_id == user.id,
             AttendanceDaily.day >= query_start,
             AttendanceDaily.day <= today,
         )
@@ -92,20 +95,37 @@ def build_dashboard_summary(
 
     goal = db.scalar(
         select(Goal)
-        .where(Goal.user_id == user_id, Goal.is_active.is_(True))
+        .where(Goal.user_id == user.id, Goal.is_active.is_(True))
         .order_by(Goal.effective_from.desc())
     )
 
-    daily_goal_seconds = goal.daily_goal_seconds if goal else 2 * 3600
-    weekly_goal_seconds = goal.weekly_goal_seconds if goal else 12 * 3600
-    monthly_goal_seconds = goal.monthly_goal_seconds if goal else 90 * 3600
-    pace_mode = goal.pace_mode if goal else "calendar_days"
+    resolved_goal = resolve_goal(goal, effective_from=today.replace(day=1))
+    daily_goal_seconds = resolved_goal.daily_goal_seconds
+    weekly_goal_seconds = resolved_goal.weekly_goal_seconds
+    monthly_goal_seconds = resolved_goal.monthly_goal_seconds
+    pace_mode = resolved_goal.pace_mode
+
+    live_checked_at: str | None = None
+    today_is_live = False
+    live_today_seconds = today_seconds
+
+    try:
+        live_overlay = build_live_today_overlay(db, user)
+        live_today_seconds = max(today_seconds, live_overlay.live_seconds)
+        today_is_live = live_overlay.has_active_session or live_today_seconds > today_seconds
+        live_checked_at = live_overlay.checked_at.isoformat()
+    except Exception:
+        live_today_seconds = today_seconds
+
+    week_display_seconds = week_seconds - today_seconds + live_today_seconds
+    month_display_seconds = month_seconds - today_seconds + live_today_seconds
 
     monthly_attendance = {
         day: seconds
         for day, seconds in attendance_by_day.items()
         if day.year == today.year and day.month == today.month
     }
+    monthly_attendance[today] = live_today_seconds
 
     calendar_pace = calculate_monthly_pace(
         monthly_goal_seconds=monthly_goal_seconds,
@@ -120,7 +140,7 @@ def build_dashboard_summary(
         weekdays_only=True,
     )
 
-    latest_successful_sync = _latest_successful_sync_finished_at(db, user_id)
+    latest_successful_sync = _latest_successful_sync_finished_at(db, user.id)
 
     stale_age_hours: float | None = None
     last_synced_at: str | None = None
@@ -138,19 +158,29 @@ def build_dashboard_summary(
         last_synced_at = latest_successful_sync.isoformat()
 
     return DashboardSummary(
-        hours_today=_hours(today_seconds),
-        hours_week=_hours(week_seconds),
-        hours_month=_hours(month_seconds),
+        hours_today=_hours(live_today_seconds),
+        hours_today_finalized=_hours(today_seconds),
+        hours_today_live=_hours(live_today_seconds),
+        hours_week=_hours(week_display_seconds),
+        hours_month=_hours(month_display_seconds),
         daily_goal_hours=_hours(daily_goal_seconds),
         weekly_goal_hours=_hours(weekly_goal_seconds),
         monthly_goal_hours=_hours(monthly_goal_seconds),
-        hours_left_to_monthly_goal=_hours(max(0, monthly_goal_seconds - month_seconds)),
+        hours_left_to_monthly_goal=_hours(max(0, monthly_goal_seconds - month_display_seconds)),
         required_hours_per_remaining_day=_hours(int(calendar_pace.required_seconds_per_day)),
         required_hours_per_remaining_weekday=_hours(int(weekday_pace.required_seconds_per_day)),
-        week_vs_previous_week_hours=round(_hours(week_seconds - previous_week_seconds), 2),
-        month_vs_previous_month_hours=round(_hours(month_seconds - previous_month_seconds), 2),
+        week_vs_previous_week_hours=round(
+            _hours(week_display_seconds - previous_week_seconds),
+            2,
+        ),
+        month_vs_previous_month_hours=round(
+            _hours(month_display_seconds - previous_month_seconds),
+            2,
+        ),
         pace_mode=pace_mode,
         is_stale=is_stale,
         stale_age_hours=stale_age_hours,
         last_synced_at=last_synced_at,
+        today_is_live=today_is_live,
+        live_checked_at=live_checked_at,
     )

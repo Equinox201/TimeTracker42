@@ -8,6 +8,8 @@ struct AttendanceHistoryResponse: Codable {
     let isStale: Bool
     let staleAgeHours: Double?
     let lastSyncedAt: String?
+    let todayIsLive: Bool
+    let liveCheckedAt: String?
     let days: [AttendanceHistoryDay]
 }
 

@@ -140,6 +140,27 @@ class FortyTwoClient:
         return response.status_code, payload
 
     @staticmethod
+    def _fetch_recent_locations_with_token(
+        access_token: str,
+        user_identifier: str,
+    ) -> tuple[int, Any]:
+        headers = {"Authorization": f"Bearer {access_token}"}
+        params = {"page[size]": "100", "sort": "-begin_at"}
+        url = f"{settings.fortytwo_api_base_url}/users/{user_identifier}/locations"
+
+        with httpx.Client(timeout=20.0) as client:
+            response = client.get(url, headers=headers, params=params)
+
+        payload: Any = None
+        if response.content:
+            try:
+                payload = response.json()
+            except ValueError:
+                payload = response.text[:300]
+
+        return response.status_code, payload
+
+    @staticmethod
     def fetch_locations_stats(db: Session, user: User) -> dict[str, str | None]:
         access_token = FortyTwoClient._get_valid_access_token(db, user.id)
         status_code, payload = FortyTwoClient._fetch_locations_stats_with_token(
@@ -178,5 +199,44 @@ class FortyTwoClient:
                 normalized[day_key] = None
             else:
                 normalized[day_key] = str(value)
+
+        return normalized
+
+    @staticmethod
+    def fetch_recent_locations(db: Session, user: User) -> list[dict[str, Any]]:
+        access_token = FortyTwoClient._get_valid_access_token(db, user.id)
+        status_code, payload = FortyTwoClient._fetch_recent_locations_with_token(
+            access_token=access_token,
+            user_identifier=str(user.forty_two_user_id),
+        )
+
+        if status_code == 401:
+            oauth_row = FortyTwoClient._get_oauth_row(db, user.id)
+            access_token = FortyTwoClient._refresh_access_token(db, oauth_row)
+            status_code, payload = FortyTwoClient._fetch_recent_locations_with_token(
+                access_token=access_token,
+                user_identifier=str(user.forty_two_user_id),
+            )
+
+        if status_code == 403:
+            app_access_token = FortyTwoClient._get_app_access_token()
+            status_code, payload = FortyTwoClient._fetch_recent_locations_with_token(
+                access_token=app_access_token,
+                user_identifier=user.login,
+            )
+
+        if status_code >= 400:
+            raise FortyTwoClientError(
+                "42 locations request failed "
+                f"(status={status_code}, user_identifier={user.login}, body={payload})"
+            )
+
+        if not isinstance(payload, list):
+            raise FortyTwoClientError("Invalid locations payload format")
+
+        normalized: list[dict[str, Any]] = []
+        for item in payload:
+            if isinstance(item, dict):
+                normalized.append(item)
 
         return normalized

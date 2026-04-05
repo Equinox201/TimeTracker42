@@ -10,6 +10,7 @@ final class AppState {
     var userLogin: String = ""
     var isDataStale: Bool = false
     var isBootstrappingSession: Bool = true
+    var goalSettings: GoalSettings?
 
     let mobileCallbackScheme = "timetracker42"
 
@@ -90,12 +91,27 @@ final class AppState {
         userLogin = response.user.login
     }
 
+    func refreshGoalSettings() async throws -> GoalSettings {
+        let accessToken = try await validAccessToken()
+        let goals = try await apiClient.getCurrentGoals(accessToken: accessToken)
+        goalSettings = goals
+        return goals
+    }
+
+    func saveGoalSettings(request: GoalSettingsUpdateRequest) async throws -> GoalSettings {
+        let accessToken = try await validAccessToken()
+        let goals = try await apiClient.updateCurrentGoals(accessToken: accessToken, request: request)
+        goalSettings = goals
+        return goals
+    }
+
     private func clearSession() {
         accessToken = ""
         refreshToken = ""
         accessTokenExpiresAt = nil
         userLogin = ""
         isDataStale = false
+        goalSettings = nil
         deletePersistedSession()
     }
 

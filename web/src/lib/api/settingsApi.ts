@@ -6,15 +6,16 @@ type GoalResponseWire = {
   weekly_goal_seconds: number;
   monthly_goal_seconds: number;
   pace_mode: "calendar_days" | "weekdays";
+  days_per_week: number;
   effective_from: string;
   is_active: boolean;
 };
 
 type GoalUpsertWire = {
-  daily_goal_seconds: number;
-  weekly_goal_seconds: number;
-  monthly_goal_seconds: number;
+  input_mode: "daily" | "weekly" | "monthly";
+  input_goal_seconds: number;
   pace_mode: "calendar_days" | "weekdays";
+  days_per_week: number;
   effective_from: string;
 };
 
@@ -48,15 +49,16 @@ export type GoalSettings = {
   weeklyGoalHours: number;
   monthlyGoalHours: number;
   paceMode: "calendar_days" | "weekdays";
+  daysPerWeek: number;
   effectiveFrom: string;
   isActive: boolean;
 };
 
 export type GoalUpsertInput = {
-  dailyGoalHours: number;
-  weeklyGoalHours: number;
-  monthlyGoalHours: number;
+  inputMode: "daily" | "weekly" | "monthly";
+  inputGoalHours: number;
   paceMode: "calendar_days" | "weekdays";
+  daysPerWeek: number;
   effectiveFrom: string;
 };
 
@@ -99,6 +101,7 @@ function normalizeGoal(payload: GoalResponseWire): GoalSettings {
     weeklyGoalHours: secondsToHours(payload.weekly_goal_seconds),
     monthlyGoalHours: secondsToHours(payload.monthly_goal_seconds),
     paceMode: payload.pace_mode,
+    daysPerWeek: payload.days_per_week,
     effectiveFrom: payload.effective_from,
     isActive: payload.is_active
   };
@@ -128,10 +131,10 @@ export async function upsertCurrentGoals(
   payload: GoalUpsertInput
 ): Promise<GoalSettings> {
   const body: GoalUpsertWire = {
-    daily_goal_seconds: hoursToSeconds(payload.dailyGoalHours),
-    weekly_goal_seconds: hoursToSeconds(payload.weeklyGoalHours),
-    monthly_goal_seconds: hoursToSeconds(payload.monthlyGoalHours),
+    input_mode: payload.inputMode,
+    input_goal_seconds: hoursToSeconds(payload.inputGoalHours),
     pace_mode: payload.paceMode,
+    days_per_week: payload.daysPerWeek,
     effective_from: payload.effectiveFrom
   };
 

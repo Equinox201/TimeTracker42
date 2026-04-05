@@ -18,6 +18,6 @@ def dashboard_summary(
 ) -> DashboardSummary:
     return build_dashboard_summary(
         db=db,
-        user_id=current_user.id,
+        user=current_user,
         stale_warning_hours=settings.stale_warning_hours,
     )

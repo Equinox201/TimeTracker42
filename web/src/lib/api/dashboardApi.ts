@@ -2,6 +2,8 @@ import { authHeaders, requestJson } from "./http";
 
 type DashboardSummaryWire = {
   hours_today: number;
+  hours_today_finalized: number;
+  hours_today_live: number;
   hours_week: number;
   hours_month: number;
   daily_goal_hours: number;
@@ -16,6 +18,8 @@ type DashboardSummaryWire = {
   is_stale: boolean;
   stale_age_hours: number | null;
   last_synced_at: string | null;
+  today_is_live: boolean;
+  live_checked_at: string | null;
 };
 
 type AttendanceHistoryDayWire = {
@@ -34,6 +38,8 @@ type AttendanceHistoryWire = {
   is_stale: boolean;
   stale_age_hours: number | null;
   last_synced_at: string | null;
+  today_is_live: boolean;
+  live_checked_at: string | null;
   days: AttendanceHistoryDayWire[];
 };
 
@@ -49,6 +55,8 @@ type ManualSyncResponseWire = {
 
 export type DashboardSummary = {
   hoursToday: number;
+  hoursTodayFinalized: number;
+  hoursTodayLive: number;
   hoursWeek: number;
   hoursMonth: number;
   dailyGoalHours: number;
@@ -63,6 +71,8 @@ export type DashboardSummary = {
   isStale: boolean;
   staleAgeHours: number | null;
   lastSyncedAt: string | null;
+  todayIsLive: boolean;
+  liveCheckedAt: string | null;
 };
 
 export type AttendanceHistoryDay = {
@@ -81,6 +91,8 @@ export type AttendanceHistory = {
   isStale: boolean;
   staleAgeHours: number | null;
   lastSyncedAt: string | null;
+  todayIsLive: boolean;
+  liveCheckedAt: string | null;
   days: AttendanceHistoryDay[];
 };
 
@@ -102,6 +114,8 @@ export type AttendanceRangeInput = {
 function normalizeDashboard(payload: DashboardSummaryWire): DashboardSummary {
   return {
     hoursToday: payload.hours_today,
+    hoursTodayFinalized: payload.hours_today_finalized,
+    hoursTodayLive: payload.hours_today_live,
     hoursWeek: payload.hours_week,
     hoursMonth: payload.hours_month,
     dailyGoalHours: payload.daily_goal_hours,
@@ -115,7 +129,9 @@ function normalizeDashboard(payload: DashboardSummaryWire): DashboardSummary {
     paceMode: payload.pace_mode,
     isStale: payload.is_stale,
     staleAgeHours: payload.stale_age_hours,
-    lastSyncedAt: payload.last_synced_at
+    lastSyncedAt: payload.last_synced_at,
+    todayIsLive: payload.today_is_live,
+    liveCheckedAt: payload.live_checked_at
   };
 }
 
@@ -128,6 +144,8 @@ function normalizeHistory(payload: AttendanceHistoryWire): AttendanceHistory {
     isStale: payload.is_stale,
     staleAgeHours: payload.stale_age_hours,
     lastSyncedAt: payload.last_synced_at,
+    todayIsLive: payload.today_is_live,
+    liveCheckedAt: payload.live_checked_at,
     days: payload.days.map((day) => ({
       day: day.day,
       durationSeconds: day.duration_seconds,

@@ -2,6 +2,8 @@ import Foundation
 
 struct DashboardSummary: Codable {
     let hoursToday: Double
+    let hoursTodayFinalized: Double
+    let hoursTodayLive: Double
     let hoursWeek: Double
     let hoursMonth: Double
     let dailyGoalHours: Double
@@ -16,4 +18,6 @@ struct DashboardSummary: Codable {
     let isStale: Bool
     let staleAgeHours: Double?
     let lastSyncedAt: String?
+    let todayIsLive: Bool
+    let liveCheckedAt: String?
 }

@@ -36,6 +36,20 @@ struct APIClient {
         return try decode(AttendanceHistoryResponse.self, from: data)
     }
 
+    func getCurrentGoals(accessToken: String) async throws -> GoalSettings {
+        let data = try await get(path: "/api/v1/goals/current", accessToken: accessToken)
+        return try decode(GoalSettings.self, from: data)
+    }
+
+    func updateCurrentGoals(
+        accessToken: String,
+        request: GoalSettingsUpdateRequest
+    ) async throws -> GoalSettings {
+        let body = try encode(request)
+        let data = try await put(path: "/api/v1/goals/current", accessToken: accessToken, body: body)
+        return try decode(GoalSettings.self, from: data)
+    }
+
     func triggerManualSync(accessToken: String, force: Bool = false) async throws {
         let query = force ? [URLQueryItem(name: "force", value: "true")] : []
         _ = try await post(path: "/api/v1/sync/manual", queryItems: query, accessToken: accessToken)
@@ -92,6 +106,30 @@ struct APIClient {
         let request = try buildRequest(
             path: path,
             method: "POST",
+            queryItems: queryItems,
+            accessToken: accessToken,
+            body: body
+        )
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            return try validateResponse(data: data, response: response)
+        } catch let error as APIError {
+            throw error
+        } catch {
+            throw APIError.network(error)
+        }
+    }
+
+    private func put(
+        path: String,
+        queryItems: [URLQueryItem] = [],
+        accessToken: String? = nil,
+        body: Data? = nil
+    ) async throws -> Data {
+        let request = try buildRequest(
+            path: path,
+            method: "PUT",
             queryItems: queryItems,
             accessToken: accessToken,
             body: body

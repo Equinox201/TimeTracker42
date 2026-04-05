@@ -289,6 +289,12 @@ export function HistoryPage() {
           staleAgeHours={history.staleAgeHours}
           lastSyncedAt={history.lastSyncedAt}
         />
+
+        {history.todayIsLive ? (
+          <div className="mt-3 rounded-xl border border-tt42-teal/35 bg-tt42-teal/10 px-3 py-2 text-sm text-tt42-text">
+            Today’s calendar entry includes live campus time and may increase until your current session closes.
+          </div>
+        ) : null}
       </article>
 
       {pageError && (

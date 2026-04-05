@@ -16,5 +16,6 @@ class Goal(Base):
     weekly_goal_seconds: Mapped[int] = mapped_column(Integer, default=0)
     monthly_goal_seconds: Mapped[int] = mapped_column(Integer, default=90 * 60 * 60)
     pace_mode: Mapped[str] = mapped_column(String(32), default="calendar_days")
+    days_per_week: Mapped[int] = mapped_column(Integer, default=5)
     effective_from: Mapped[date] = mapped_column(Date)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
