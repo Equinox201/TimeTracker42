@@ -28,7 +28,7 @@ struct ConcentricActivityRingsView: View {
                     .fill(.black)
                     .frame(width: 82, height: 82)
 
-                Text(TimeFormatters.hoursToReadable(monthlyHoursValue))
+                Text(monthlyProgressValue)
                     .font(.system(size: 16, weight: .black, design: .rounded))
                     .foregroundStyle(.white)
                     .minimumScaleFactor(0.6)
@@ -63,11 +63,14 @@ struct ConcentricActivityRingsView: View {
         .tt42CardStyle()
     }
 
-    private var monthlyHoursValue: Double {
+    private var monthlyProgressValue: String {
         if let monthMetric = metrics.first(where: { $0.title.lowercased() == "month" }) {
-            return monthMetric.valueHours
+            return TimeFormatters.progressPercent(value: monthMetric.valueHours, goal: monthMetric.goalHours)
         }
-        return metrics.first?.valueHours ?? 0
+        if let firstMetric = metrics.first {
+            return TimeFormatters.progressPercent(value: firstMetric.valueHours, goal: firstMetric.goalHours)
+        }
+        return "0%"
     }
 
     private func percentLabel(progress: Double) -> String {

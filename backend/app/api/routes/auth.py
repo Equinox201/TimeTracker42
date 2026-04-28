@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -16,8 +17,10 @@ from app.core.security import (
 )
 from app.schemas.auth import LogoutRequest, MobileExchangeRequest, RefreshRequest, TokenPairResponse
 from app.services.auth_service import AuthFlowError, AuthService
+from app.services.sync_service import SyncError, sync_user_attendance
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def _allowed_mobile_redirect_uris() -> set[str]:
@@ -149,9 +152,22 @@ def mobile_exchange(
     )
 
     try:
-        return AuthService.consume_mobile_auth_code_and_issue_tokens(db, payload.one_time_code)
+        token_pair = AuthService.consume_mobile_auth_code_and_issue_tokens(db, payload.one_time_code)
     except AuthFlowError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+
+    user = AuthService.get_user_by_id(db, token_pair.user.id)
+    if user is not None:
+        try:
+            sync_user_attendance(db, user, trigger="login")
+        except SyncError as exc:
+            logger.warning(
+                "login_sync_failed user_id=%s error_type=%s",
+                user.id,
+                type(exc).__name__,
+            )
+
+    return token_pair
 
 
 @router.post("/refresh", response_model=TokenPairResponse)

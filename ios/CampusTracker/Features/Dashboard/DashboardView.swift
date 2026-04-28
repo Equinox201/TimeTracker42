@@ -106,17 +106,6 @@ struct DashboardView: View {
             .navigationTitle("Main")
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button {
-                        Task { await performRefresh(trigger: .toolbarRefresh, forceSync: true) }
-                    } label: {
-                        if isLoading {
-                            ProgressView()
-                        } else {
-                            Image(systemName: "arrow.clockwise")
-                        }
-                    }
-                    .disabled(isLoading || isSyncing)
-
                     Button("Sync") {
                         Task { await performRefresh(trigger: .syncButton, forceSync: true) }
                     }
@@ -405,7 +394,6 @@ struct DashboardView: View {
     private enum RefreshTrigger {
         case initialLoad
         case pullToRefresh
-        case toolbarRefresh
         case syncButton
         case foregroundAuto
     }

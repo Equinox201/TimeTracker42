@@ -24,6 +24,17 @@ export function deltaHoursReadable(hours: number): string {
   return `${sign}${hoursToReadable(Math.abs(safe))}`;
 }
 
+export function progressPercent(valueHours: number, goalHours: number): string {
+  const safeValue = Number.isFinite(valueHours) ? Math.max(valueHours, 0) : 0;
+  const safeGoal = Number.isFinite(goalHours) ? goalHours : 0;
+
+  if (safeGoal <= 0) {
+    return "0%";
+  }
+
+  return `${Math.round((safeValue / safeGoal) * 100)}%`;
+}
+
 export function monthYearLabel(date: Date): string {
   return new Intl.DateTimeFormat(undefined, {
     month: "long",

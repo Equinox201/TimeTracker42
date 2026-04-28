@@ -24,6 +24,14 @@ enum TimeFormatters {
         return "\(sign)\(hoursToReadable(abs(hours)))"
     }
 
+    static func progressPercent(value: Double, goal: Double) -> String {
+        let safeValue = value.isFinite ? max(value, 0) : 0
+        let safeGoal = goal.isFinite ? goal : 0
+
+        guard safeGoal > 0 else { return "0%" }
+        return "\(Int(((safeValue / safeGoal) * 100).rounded()))%"
+    }
+
     private static func minutesToReadable(_ totalMinutes: Int) -> String {
         let h = totalMinutes / 60
         let m = totalMinutes % 60

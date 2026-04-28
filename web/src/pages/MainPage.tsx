@@ -14,7 +14,7 @@ import {
 } from "../lib/api/dashboardApi";
 import { ApiError } from "../lib/api/http";
 import { useAuth } from "../lib/auth";
-import { deltaHoursReadable, hoursToReadable } from "../lib/formatters";
+import { deltaHoursReadable, hoursToReadable, progressPercent } from "../lib/formatters";
 
 function errorText(error: unknown): string {
   if (error instanceof Error) {
@@ -203,17 +203,7 @@ export function MainPage() {
           </span>
         </div>
 
-        <div className="mb-3 flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              void Promise.all([dashboardQuery.refetch(), monthHistoryQuery.refetch()]);
-            }}
-            disabled={isRefreshing || syncMutation.isPending}
-            className="rounded-lg border border-tt42-border bg-tt42-surface px-3 py-2 text-xs font-medium text-tt42-text disabled:opacity-60"
-          >
-            {isRefreshing ? "Refreshing..." : "Refresh"}
-          </button>
+        <div className="mb-3 flex items-center justify-end">
           <button
             type="button"
             onClick={() => {
@@ -242,8 +232,7 @@ export function MainPage() {
         <div className="mt-4">
           <ConcentricProgressRings
             metrics={ringMetrics}
-            centerValue={hoursToReadable(summary.hoursMonth)}
-            centerLabel="Monthly Hours"
+            centerValue={progressPercent(summary.hoursMonth, summary.monthlyGoalHours)}
           />
         </div>
       </article>

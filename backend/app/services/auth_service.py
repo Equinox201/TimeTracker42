@@ -178,6 +178,10 @@ class AuthService:
         return decrypt_text(oauth_token.access_token_encrypted, settings.token_encryption_key)
 
     @staticmethod
+    def get_user_by_id(db: Session, user_id: UUID) -> User | None:
+        return db.get(User, user_id)
+
+    @staticmethod
     def issue_mobile_auth_code(db: Session, user_id: UUID) -> str:
         raw_code = generate_secure_token(24)
         code_hash = hash_refresh_token(raw_code)

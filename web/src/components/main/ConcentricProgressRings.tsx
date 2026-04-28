@@ -18,7 +18,6 @@ export type RingMetric = {
 type ConcentricProgressRingsProps = {
   metrics: RingMetric[];
   centerValue: string;
-  centerLabel: string;
 };
 
 const colorByTone: Record<RingTone, string> = {
@@ -49,7 +48,7 @@ function headPoint(radius: number, ratio: number): { x: number; y: number } {
   };
 }
 
-export function ConcentricProgressRings({ metrics, centerValue, centerLabel }: ConcentricProgressRingsProps) {
+export function ConcentricProgressRings({ metrics, centerValue }: ConcentricProgressRingsProps) {
   return (
     <div className="rounded-3xl border border-tt42-border bg-gradient-to-b from-tt42-surface2/80 to-tt42-surface p-4">
       <div className="relative mx-auto aspect-square w-full max-w-[340px]">
@@ -141,9 +140,8 @@ export function ConcentricProgressRings({ metrics, centerValue, centerLabel }: C
         </svg>
 
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="flex h-32 w-32 flex-col items-center justify-center rounded-full border border-tt42-border bg-black text-center shadow-soft dark:bg-black/90">
+          <div className="flex h-32 w-32 items-center justify-center rounded-full border border-tt42-border bg-black text-center shadow-soft dark:bg-black/90">
             <p className="text-3xl font-bold text-white">{centerValue}</p>
-            <p className="mt-1 text-[11px] uppercase tracking-[0.16em] text-white/75">{centerLabel}</p>
           </div>
         </div>
       </div>

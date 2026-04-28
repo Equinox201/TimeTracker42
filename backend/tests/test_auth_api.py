@@ -6,6 +6,7 @@ from app.core.config import settings
 from app.core.security import create_oauth_state_token
 from app.models.oauth_token import OAuthToken
 from app.services.auth_service import AuthService
+from app.services.sync_service import SyncError
 
 
 def test_auth_start_redirects_to_42_authorize_url(client) -> None:
@@ -119,6 +120,8 @@ def test_auth_callback_accepts_allowlisted_web_state_redirect(client, monkeypatc
 
 
 def test_auth_callback_exchange_refresh_logout_flow(client, db_session, monkeypatch) -> None:
+    sync_calls: list[str] = []
+
     async def fake_exchange_code_for_token(code: str):
         assert code == "provider_code"
 
@@ -148,6 +151,10 @@ def test_auth_callback_exchange_refresh_logout_flow(client, db_session, monkeypa
 
     monkeypatch.setattr(AuthService, "exchange_code_for_token", fake_exchange_code_for_token)
     monkeypatch.setattr(AuthService, "fetch_user_profile", fake_fetch_user_profile)
+    monkeypatch.setattr(
+        "app.api.routes.auth.sync_user_attendance",
+        lambda db, user, trigger: sync_calls.append(trigger),
+    )
 
     state = create_oauth_state_token(
         mobile_redirect_uri="timetracker42://auth/callback",
@@ -176,6 +183,7 @@ def test_auth_callback_exchange_refresh_logout_flow(client, db_session, monkeypa
         json={"one_time_code": one_time_code},
     )
     assert exchange.status_code == 200
+    assert sync_calls == ["login"]
 
     second_exchange = client.post(
         "/api/v1/auth/mobile/exchange",
@@ -219,3 +227,60 @@ def test_auth_callback_exchange_refresh_logout_flow(client, db_session, monkeypa
         json={"refresh_token": new_refresh_token},
     )
     assert refresh_after_logout.status_code == 401
+
+
+def test_auth_mobile_exchange_succeeds_when_login_sync_fails(client, monkeypatch) -> None:
+    async def fake_exchange_code_for_token(code: str):
+        assert code == "provider_code"
+
+        return type(
+            "TokenResponse",
+            (),
+            {
+                "access_token": "provider_access",
+                "refresh_token": "provider_refresh",
+                "expires_in": 7200,
+                "scope": "public",
+            },
+        )()
+
+    async def fake_fetch_user_profile(access_token: str):
+        assert access_token == "provider_access"
+
+        return type(
+            "Profile",
+            (),
+            {
+                "id": 4343,
+                "login": "bob",
+                "display_name": "Bob",
+            },
+        )()
+
+    def failing_sync(db, user, trigger):
+        raise SyncError("upstream unavailable")
+
+    monkeypatch.setattr(AuthService, "exchange_code_for_token", fake_exchange_code_for_token)
+    monkeypatch.setattr(AuthService, "fetch_user_profile", fake_fetch_user_profile)
+    monkeypatch.setattr("app.api.routes.auth.sync_user_attendance", failing_sync)
+
+    state = create_oauth_state_token(
+        mobile_redirect_uri="timetracker42://auth/callback",
+        secret=settings.jwt_secret,
+        ttl_minutes=settings.oauth_state_ttl_minutes,
+    )
+
+    callback = client.get(
+        "/api/v1/auth/42/callback",
+        params={"code": "provider_code", "state": state},
+        follow_redirects=False,
+    )
+    one_time_code = parse_qs(urlparse(callback.headers["location"]).query)["otc"][0]
+
+    exchange = client.post(
+        "/api/v1/auth/mobile/exchange",
+        json={"one_time_code": one_time_code},
+    )
+
+    assert exchange.status_code == 200
+    assert exchange.json()["access_token"]
