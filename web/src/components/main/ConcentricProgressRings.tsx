@@ -4,6 +4,9 @@ const SIZE = 320;
 const CENTER = SIZE / 2;
 const STROKE_WIDTH = 24;
 const RADII = [128, 96, 64];
+const RING_GAP = RADII[0] - RADII[1] - STROKE_WIDTH;
+const INNER_RING_INNER_RADIUS = RADII[RADII.length - 1] - STROKE_WIDTH / 2;
+const CENTER_DISK_SIZE = (INNER_RING_INNER_RADIUS - RING_GAP) * 2;
 
 type RingTone = "magenta" | "mint" | "teal";
 
@@ -140,7 +143,10 @@ export function ConcentricProgressRings({ metrics, centerValue }: ConcentricProg
         </svg>
 
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="flex h-32 w-32 items-center justify-center rounded-full border border-tt42-border bg-black text-center shadow-soft dark:bg-black/90">
+          <div
+            className="flex items-center justify-center rounded-full border border-tt42-border bg-black text-center shadow-soft dark:bg-black/90"
+            style={{ width: CENTER_DISK_SIZE, height: CENTER_DISK_SIZE }}
+          >
             <p className="text-3xl font-bold text-white">{centerValue}</p>
           </div>
         </div>
