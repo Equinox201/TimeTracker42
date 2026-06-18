@@ -54,7 +54,7 @@ export function AuthCallbackPage() {
     <div className="mx-auto flex min-h-screen w-full max-w-[520px] items-center px-4 py-10">
       <div className="w-full rounded-card border border-tt42-border bg-tt42-surface p-6 shadow-soft">
         <h1 className="text-2xl font-semibold">Signing you in…</h1>
-        <p className="mt-2 text-sm text-tt42-muted">Exchanging one-time code with backend.</p>
+        <p className="mt-2 text-sm text-tt42-muted">Completing Supabase session setup.</p>
 
         {isLoading ? <p className="mt-4 text-sm text-tt42-muted">Please wait…</p> : null}
 

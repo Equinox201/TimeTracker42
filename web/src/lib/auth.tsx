@@ -1,8 +1,23 @@
 import { PropsWithChildren, createContext, useContext, useEffect, useMemo, useState } from "react";
+import type { Session as SupabaseSession, User as SupabaseUser } from "@supabase/supabase-js";
 
-import { exchangeOneTimeCode, logoutSession, refreshSession, type SessionPayload } from "./api/authApi";
+import { supabase } from "./supabase";
 
 type AuthStatus = "booting" | "ready";
+
+export type SessionUser = {
+  id: string;
+  login: string;
+  displayName: string;
+};
+
+export type SessionPayload = {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
+  accessTokenExpiresAt: string;
+  user: SessionUser;
+};
 
 type AuthContextValue = {
   status: AuthStatus;
@@ -16,16 +31,55 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function parseExpiry(isoValue: string): number {
-  const parsed = Date.parse(isoValue);
-  if (Number.isNaN(parsed)) {
-    return 0;
+function stringMetadata(user: SupabaseUser, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = user.user_metadata[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
   }
-  return parsed;
+  return null;
 }
 
-function callbackUrl(): string {
-  return `${window.location.origin}/auth/callback`;
+function loginFromUser(user: SupabaseUser): string {
+  const metadataLogin = stringMetadata(user, ["login", "user_name", "preferred_username", "nickname"]);
+  if (metadataLogin) {
+    return metadataLogin;
+  }
+  if (user.email) {
+    return user.email.split("@")[0] ?? user.email;
+  }
+  return user.id;
+}
+
+function displayNameFromUser(user: SupabaseUser, login: string): string {
+  return stringMetadata(user, ["display_name", "full_name", "name"]) ?? user.email ?? login;
+}
+
+function accessTokenExpiresAt(session: SupabaseSession): string {
+  if (session.expires_at) {
+    return new Date(session.expires_at * 1000).toISOString();
+  }
+  return new Date(Date.now() + session.expires_in * 1000).toISOString();
+}
+
+function adaptSession(session: SupabaseSession | null): SessionPayload | null {
+  if (!session) {
+    return null;
+  }
+
+  const login = loginFromUser(session.user);
+  return {
+    accessToken: session.access_token,
+    refreshToken: session.refresh_token ?? "",
+    tokenType: session.token_type,
+    accessTokenExpiresAt: accessTokenExpiresAt(session),
+    user: {
+      id: session.user.id,
+      login,
+      displayName: displayNameFromUser(session.user, login)
+    }
+  };
 }
 
 export function AuthProvider({ children }: PropsWithChildren) {
@@ -33,54 +87,60 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<SessionPayload | null>(null);
 
   const startOAuthUrl = useMemo(() => {
-    const redirect = encodeURIComponent(callbackUrl());
-    return `${import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000"}/api/v1/auth/42/start?mobile_redirect_uri=${redirect}`;
+    return "#";
   }, []);
 
   useEffect(() => {
-    setStatus("ready");
+    let isMounted = true;
+
+    const loadSession = async () => {
+      const { data, error } = await supabase.auth.getSession();
+      if (!isMounted) {
+        return;
+      }
+      if (error) {
+        setSession(null);
+      } else {
+        setSession(adaptSession(data.session));
+      }
+      setStatus("ready");
+    };
+
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(adaptSession(nextSession));
+      setStatus("ready");
+    });
+
+    void loadSession();
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const persistSession = (next: SessionPayload | null) => {
-    setSession(next);
-  };
-
-  const completeOAuthSignIn = async (oneTimeCode: string) => {
-    const next = await exchangeOneTimeCode(oneTimeCode);
-    persistSession(next);
+  const completeOAuthSignIn = async () => {
+    throw new Error("42 OAuth via Supabase Edge Functions is not implemented yet.");
   };
 
   const validAccessToken = async () => {
-    if (!session) {
+    const { data, error } = await supabase.auth.getSession();
+    if (error || !data.session) {
+      setSession(null);
       throw new Error("Not authenticated");
     }
 
-    const expiresAt = parseExpiry(session.accessTokenExpiresAt);
-    const refreshWindow = Date.now() + 60_000;
-    if (expiresAt > refreshWindow) {
-      return session.accessToken;
-    }
-
-    try {
-      const refreshed = await refreshSession(session.refreshToken);
-      persistSession(refreshed);
-      return refreshed.accessToken;
-    } catch (error) {
-      persistSession(null);
-      throw error;
-    }
+    setSession(adaptSession(data.session));
+    return data.session.access_token;
   };
 
   const signOut = async () => {
-    const refresh = session?.refreshToken ?? "";
-    persistSession(null);
-    if (!refresh) {
-      return;
-    }
-    try {
-      await logoutSession(refresh);
-    } catch {
-      // Best-effort logout; local session is already cleared.
+    setSession(null);
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      throw error;
     }
   };
 
