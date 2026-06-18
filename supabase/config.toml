@@ -391,6 +391,9 @@ verify_jwt = false
 [functions.forty-two-oauth-callback]
 verify_jwt = false
 
+[functions.auth-exchange]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327
