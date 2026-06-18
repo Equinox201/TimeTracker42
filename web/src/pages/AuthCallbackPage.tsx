@@ -10,14 +10,13 @@ export function AuthCallbackPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const oneTimeCode = useMemo(() => {
-    const params = new URLSearchParams(location.search);
-    return params.get("otc") ?? "";
-  }, [location.search]);
+  const callbackUrl = useMemo(() => {
+    return `${window.location.origin}${location.pathname}${location.search}${location.hash}`;
+  }, [location.hash, location.pathname, location.search]);
 
   useEffect(() => {
-    if (!oneTimeCode) {
-      setErrorMessage("Missing one-time code in callback URL.");
+    if (!location.search && !location.hash) {
+      setErrorMessage("Missing Supabase auth callback parameters.");
       setIsLoading(false);
       return;
     }
@@ -26,7 +25,7 @@ export function AuthCallbackPage() {
 
     const run = async () => {
       try {
-        await completeOAuthSignIn(oneTimeCode);
+        await completeOAuthSignIn(callbackUrl);
         if (!cancelled) {
           navigate("/app/main", { replace: true });
         }
@@ -37,7 +36,7 @@ export function AuthCallbackPage() {
         setErrorMessage(error instanceof Error ? error.message : "Sign-in failed.");
         setIsLoading(false);
       } finally {
-        if (location.search) {
+        if (location.search || location.hash) {
           window.history.replaceState(null, "", location.pathname);
         }
       }
@@ -48,7 +47,7 @@ export function AuthCallbackPage() {
     return () => {
       cancelled = true;
     };
-  }, [completeOAuthSignIn, navigate, oneTimeCode, location.pathname, location.search]);
+  }, [callbackUrl, completeOAuthSignIn, location.hash, location.pathname, location.search, navigate]);
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-[520px] items-center px-4 py-10">

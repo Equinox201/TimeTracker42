@@ -24,7 +24,7 @@ type AuthContextValue = {
   isAuthenticated: boolean;
   session: SessionPayload | null;
   startOAuthUrl: string;
-  completeOAuthSignIn: (oneTimeCode: string) => Promise<void>;
+  completeOAuthSignIn: (callbackUrl: string) => Promise<void>;
   validAccessToken: () => Promise<string>;
   signOut: () => Promise<void>;
 };
@@ -82,6 +82,14 @@ function adaptSession(session: SupabaseSession | null): SessionPayload | null {
   };
 }
 
+function callbackParams(callbackUrl: string): { search: URLSearchParams; hash: URLSearchParams } {
+  const url = new URL(callbackUrl);
+  return {
+    search: url.searchParams,
+    hash: new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : url.hash)
+  };
+}
+
 export function AuthProvider({ children }: PropsWithChildren) {
   const [status, setStatus] = useState<AuthStatus>("booting");
   const [session, setSession] = useState<SessionPayload | null>(null);
@@ -121,8 +129,54 @@ export function AuthProvider({ children }: PropsWithChildren) {
     };
   }, []);
 
-  const completeOAuthSignIn = async () => {
-    throw new Error("42 OAuth via Supabase Edge Functions is not implemented yet.");
+  const completeOAuthSignIn = async (callbackUrl: string) => {
+    const { search, hash } = callbackParams(callbackUrl);
+    const callbackError = search.get("error_description") ?? hash.get("error_description") ?? search.get("error") ?? hash.get("error");
+    if (callbackError) {
+      throw new Error(callbackError);
+    }
+
+    const accessToken = hash.get("access_token");
+    const refreshToken = hash.get("refresh_token");
+    if (accessToken && refreshToken) {
+      const { data, error } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken
+      });
+      if (error) {
+        setSession(null);
+        throw error;
+      }
+      setSession(adaptSession(data.session));
+      return;
+    }
+
+    const code = search.get("code");
+    if (code) {
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+      if (error) {
+        setSession(null);
+        throw error;
+      }
+      setSession(adaptSession(data.session));
+      return;
+    }
+
+    const tokenHash = search.get("token_hash") ?? hash.get("token_hash");
+    if (tokenHash) {
+      const { data, error } = await supabase.auth.verifyOtp({
+        token_hash: tokenHash,
+        type: "email"
+      });
+      if (error) {
+        setSession(null);
+        throw error;
+      }
+      setSession(adaptSession(data.session));
+      return;
+    }
+
+    throw new Error("Missing Supabase auth callback parameters.");
   };
 
   const validAccessToken = async () => {
