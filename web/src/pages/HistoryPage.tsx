@@ -29,7 +29,6 @@ import {
   triggerManualSync,
   type AttendanceHistoryDay
 } from "../lib/api/dashboardApi";
-import { ApiError } from "../lib/api/http";
 import { useAuth } from "../lib/auth";
 import { hoursToReadable, monthYearLabel } from "../lib/formatters";
 
@@ -113,7 +112,7 @@ function countAchievedWeeks(days: AttendanceHistoryDay[], weeklyGoalHours: numbe
 }
 
 export function HistoryPage() {
-  const { validAccessToken, signOut } = useAuth();
+  const { validAccessToken } = useAuth();
   const [selectedMonth, setSelectedMonth] = useState<Date>(startOfMonth(new Date()));
 
   const currentMonth = startOfMonth(new Date());
@@ -126,17 +125,10 @@ export function HistoryPage() {
     queryKey: ["attendance-history-range", rangeStart, rangeEnd],
     queryFn: async () => {
       const accessToken = await validAccessToken();
-      try {
-        return await getAttendanceHistory(accessToken, {
-          from: rangeStart,
-          to: rangeEnd
-        });
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 401) {
-          await signOut();
-        }
-        throw error;
-      }
+      return getAttendanceHistory(accessToken, {
+        from: rangeStart,
+        to: rangeEnd
+      });
     }
   });
 
@@ -144,28 +136,14 @@ export function HistoryPage() {
     queryKey: ["dashboard-summary"],
     queryFn: async () => {
       const accessToken = await validAccessToken();
-      try {
-        return await getDashboardSummary(accessToken);
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 401) {
-          await signOut();
-        }
-        throw error;
-      }
+      return getDashboardSummary(accessToken);
     }
   });
 
   const syncMutation = useMutation({
     mutationFn: async () => {
       const accessToken = await validAccessToken();
-      try {
-        return await triggerManualSync(accessToken);
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 401) {
-          await signOut();
-        }
-        throw error;
-      }
+      return triggerManualSync(accessToken);
     },
     onSuccess: async () => {
       await Promise.all([historyQuery.refetch(), dashboardQuery.refetch()]);

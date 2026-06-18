@@ -12,7 +12,6 @@ import {
   type AttendanceHistory,
   type DashboardSummary
 } from "../lib/api/dashboardApi";
-import { ApiError } from "../lib/api/http";
 import { useAuth } from "../lib/auth";
 import { deltaHoursReadable, hoursToReadable, progressPercent } from "../lib/formatters";
 
@@ -54,7 +53,7 @@ function statusTag(summary: DashboardSummary): { text: string; className: string
 
 export function MainPage() {
   const queryClient = useQueryClient();
-  const { validAccessToken, signOut } = useAuth();
+  const { validAccessToken } = useAuth();
 
   const now = new Date();
   const monthStart = format(startOfMonth(now), "yyyy-MM-dd");
@@ -64,14 +63,7 @@ export function MainPage() {
     queryKey: ["dashboard-summary"],
     queryFn: async () => {
       const accessToken = await validAccessToken();
-      try {
-        return await getDashboardSummary(accessToken);
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 401) {
-          await signOut();
-        }
-        throw error;
-      }
+      return getDashboardSummary(accessToken);
     }
   });
 
@@ -80,31 +72,17 @@ export function MainPage() {
     enabled: dashboardQuery.isSuccess,
     queryFn: async () => {
       const accessToken = await validAccessToken();
-      try {
-        return await getAttendanceHistory(accessToken, {
-          from: monthStart,
-          to: monthEnd
-        });
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 401) {
-          await signOut();
-        }
-        throw error;
-      }
+      return getAttendanceHistory(accessToken, {
+        from: monthStart,
+        to: monthEnd
+      });
     }
   });
 
   const syncMutation = useMutation({
     mutationFn: async () => {
       const accessToken = await validAccessToken();
-      try {
-        return await triggerManualSync(accessToken);
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 401) {
-          await signOut();
-        }
-        throw error;
-      }
+      return triggerManualSync(accessToken);
     },
     onSuccess: async () => {
       await Promise.all([

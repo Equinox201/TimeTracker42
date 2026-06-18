@@ -9,7 +9,6 @@ import {
 import { useEffect, useMemo, useState } from "react";
 
 import { getDashboardSummary } from "../lib/api/dashboardApi";
-import { ApiError } from "../lib/api/http";
 import {
   createDeadline,
   deleteDeadline,
@@ -92,14 +91,7 @@ export function SettingsPage() {
     queryKey: ["goals-current"],
     queryFn: async () => {
       const accessToken = await validAccessToken();
-      try {
-        return await getCurrentGoals(accessToken);
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 401) {
-          await signOut();
-        }
-        throw error;
-      }
+      return getCurrentGoals(accessToken);
     }
   });
 
@@ -107,14 +99,7 @@ export function SettingsPage() {
     queryKey: ["dashboard-summary"],
     queryFn: async () => {
       const accessToken = await validAccessToken();
-      try {
-        return await getDashboardSummary(accessToken);
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 401) {
-          await signOut();
-        }
-        throw error;
-      }
+      return getDashboardSummary(accessToken);
     }
   });
 
@@ -122,14 +107,7 @@ export function SettingsPage() {
     queryKey: ["deadlines"],
     queryFn: async () => {
       const accessToken = await validAccessToken();
-      try {
-        return await listDeadlines(accessToken);
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 401) {
-          await signOut();
-        }
-        throw error;
-      }
+      return listDeadlines(accessToken);
     }
   });
 
