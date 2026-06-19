@@ -1,6 +1,6 @@
 # TimeTracker42 Web
 
-Mobile-first web frontend for TimeTracker42, reusing the existing FastAPI backend.
+Mobile-first web frontend for TimeTracker42, backed by Supabase Auth and Supabase data reads during the rewrite.
 
 ## Local Run
 

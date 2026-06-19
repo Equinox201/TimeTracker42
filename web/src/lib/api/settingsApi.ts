@@ -1,46 +1,26 @@
-import { authHeaders, requestJson } from "./http";
+import { supabase } from "../supabase";
+import { deriveGoalDraft } from "../goalMath";
 
-type GoalResponseWire = {
-  id: string | null;
-  daily_goal_seconds: number;
-  weekly_goal_seconds: number;
-  monthly_goal_seconds: number;
-  pace_mode: "calendar_days" | "weekdays";
+type PaceMode = "calendar_days" | "weekdays";
+
+type GoalRow = {
+  user_id: string;
+  daily_seconds: number;
+  weekly_seconds: number;
+  monthly_seconds: number;
+  pace_mode: PaceMode;
   days_per_week: number;
-  effective_from: string;
-  is_active: boolean;
+  updated_at: string;
 };
 
-type GoalUpsertWire = {
-  input_mode: "daily" | "weekly" | "monthly";
-  input_goal_seconds: number;
-  pace_mode: "calendar_days" | "weekdays";
-  days_per_week: number;
-  effective_from: string;
-};
-
-type DeadlineWire = {
+type DeadlineRow = {
   id: string;
+  user_id: string;
   title: string;
-  target_date: string;
-  target_hours: number;
+  due_at: string;
+  target_seconds: number | null;
   notes: string | null;
   is_completed: boolean;
-};
-
-type DeadlineCreateWire = {
-  title: string;
-  target_date: string;
-  target_hours: number;
-  notes: string | null;
-};
-
-type DeadlineUpdateWire = {
-  title?: string;
-  target_date?: string;
-  target_hours?: number;
-  notes?: string | null;
-  is_completed?: boolean;
 };
 
 export type GoalSettings = {
@@ -48,7 +28,7 @@ export type GoalSettings = {
   dailyGoalHours: number;
   weeklyGoalHours: number;
   monthlyGoalHours: number;
-  paceMode: "calendar_days" | "weekdays";
+  paceMode: PaceMode;
   daysPerWeek: number;
   effectiveFrom: string;
   isActive: boolean;
@@ -57,7 +37,7 @@ export type GoalSettings = {
 export type GoalUpsertInput = {
   inputMode: "daily" | "weekly" | "monthly";
   inputGoalHours: number;
-  paceMode: "calendar_days" | "weekdays";
+  paceMode: PaceMode;
   daysPerWeek: number;
   effectiveFrom: string;
 };
@@ -94,112 +74,216 @@ function hoursToSeconds(value: number): number {
   return Math.max(0, Math.round(value * 3600));
 }
 
-function normalizeGoal(payload: GoalResponseWire): GoalSettings {
+function effectiveDateFromTimestamp(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return new Date().toISOString().slice(0, 10);
+  }
+  return parsed.toISOString().slice(0, 10);
+}
+
+function dateOnlyToUtcMidnight(value: string): string {
+  return `${value}T00:00:00.000Z`;
+}
+
+function dateOnlyFromTimestamp(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value.slice(0, 10);
+  }
+  return parsed.toISOString().slice(0, 10);
+}
+
+async function authenticatedUserId(): Promise<string> {
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) {
+    throw new Error("Not authenticated");
+  }
+  return data.user.id;
+}
+
+function normalizeGoal(row: GoalRow): GoalSettings {
   return {
-    id: payload.id,
-    dailyGoalHours: secondsToHours(payload.daily_goal_seconds),
-    weeklyGoalHours: secondsToHours(payload.weekly_goal_seconds),
-    monthlyGoalHours: secondsToHours(payload.monthly_goal_seconds),
-    paceMode: payload.pace_mode,
-    daysPerWeek: payload.days_per_week,
-    effectiveFrom: payload.effective_from,
-    isActive: payload.is_active
+    id: row.user_id,
+    dailyGoalHours: secondsToHours(row.daily_seconds),
+    weeklyGoalHours: secondsToHours(row.weekly_seconds),
+    monthlyGoalHours: secondsToHours(row.monthly_seconds),
+    paceMode: row.pace_mode,
+    daysPerWeek: row.days_per_week,
+    effectiveFrom: effectiveDateFromTimestamp(row.updated_at),
+    isActive: true
   };
 }
 
-function normalizeDeadline(payload: DeadlineWire): Deadline {
+function normalizeDeadline(row: DeadlineRow): Deadline {
   return {
-    id: payload.id,
-    title: payload.title,
-    targetDate: payload.target_date,
-    targetHours: payload.target_hours,
-    notes: payload.notes,
-    isCompleted: payload.is_completed
+    id: row.id,
+    title: row.title,
+    targetDate: dateOnlyFromTimestamp(row.due_at),
+    targetHours: secondsToHours(row.target_seconds ?? 0),
+    notes: row.notes,
+    isCompleted: row.is_completed
   };
 }
 
-export async function getCurrentGoals(accessToken: string): Promise<GoalSettings> {
-  const payload = await requestJson<GoalResponseWire>("/api/v1/goals/current", {
-    method: "GET",
-    headers: authHeaders(accessToken)
+async function createDefaultGoals(userId: string): Promise<GoalSettings> {
+  const { data, error } = await supabase
+    .from("goals")
+    .insert({ user_id: userId })
+    .select("user_id,daily_seconds,weekly_seconds,monthly_seconds,pace_mode,days_per_week,updated_at")
+    .single<GoalRow>();
+
+  if (error) {
+    throw error;
+  }
+
+  return normalizeGoal(data);
+}
+
+export async function getCurrentGoals(_accessToken: string): Promise<GoalSettings> {
+  const userId = await authenticatedUserId();
+  const { data, error } = await supabase
+    .from("goals")
+    .select("user_id,daily_seconds,weekly_seconds,monthly_seconds,pace_mode,days_per_week,updated_at")
+    .eq("user_id", userId)
+    .maybeSingle<GoalRow>();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    return createDefaultGoals(userId);
+  }
+
+  return normalizeGoal(data);
+}
+
+export async function updateCurrentGoals(
+  _accessToken: string,
+  payload: GoalUpsertInput
+): Promise<GoalSettings> {
+  const userId = await authenticatedUserId();
+  const effectiveFrom = new Date(`${payload.effectiveFrom}T00:00:00`);
+  const draft = deriveGoalDraft({
+    inputMode: payload.inputMode,
+    inputGoalHours: payload.inputGoalHours,
+    paceMode: payload.paceMode,
+    daysPerWeek: payload.daysPerWeek,
+    effectiveFrom: Number.isNaN(effectiveFrom.getTime()) ? new Date() : effectiveFrom
   });
-  return normalizeGoal(payload);
+
+  const { data, error } = await supabase
+    .from("goals")
+    .upsert({
+      user_id: userId,
+      daily_seconds: hoursToSeconds(draft.dailyGoalHours),
+      weekly_seconds: hoursToSeconds(draft.weeklyGoalHours),
+      monthly_seconds: hoursToSeconds(draft.monthlyGoalHours),
+      pace_mode: draft.paceMode,
+      days_per_week: draft.daysPerWeek,
+      updated_at: new Date().toISOString()
+    })
+    .select("user_id,daily_seconds,weekly_seconds,monthly_seconds,pace_mode,days_per_week,updated_at")
+    .single<GoalRow>();
+
+  if (error) {
+    throw error;
+  }
+
+  return normalizeGoal(data);
 }
 
 export async function upsertCurrentGoals(
   accessToken: string,
   payload: GoalUpsertInput
 ): Promise<GoalSettings> {
-  const body: GoalUpsertWire = {
-    input_mode: payload.inputMode,
-    input_goal_seconds: hoursToSeconds(payload.inputGoalHours),
-    pace_mode: payload.paceMode,
-    days_per_week: payload.daysPerWeek,
-    effective_from: payload.effectiveFrom
-  };
+  return updateCurrentGoals(accessToken, payload);
+}
 
-  const response = await requestJson<GoalResponseWire>("/api/v1/goals/current", {
-    method: "PUT",
-    headers: authHeaders(accessToken),
-    body: JSON.stringify(body)
-  });
+export async function getDeadlines(_accessToken: string): Promise<Deadline[]> {
+  const userId = await authenticatedUserId();
+  const { data, error } = await supabase
+    .from("deadlines")
+    .select("id,user_id,title,due_at,target_seconds,notes,is_completed")
+    .eq("user_id", userId)
+    .order("due_at", { ascending: true })
+    .returns<DeadlineRow[]>();
 
-  return normalizeGoal(response);
+  if (error) {
+    throw error;
+  }
+
+  return data.map(normalizeDeadline);
 }
 
 export async function listDeadlines(accessToken: string): Promise<Deadline[]> {
-  const payload = await requestJson<DeadlineWire[]>("/api/v1/deadlines", {
-    method: "GET",
-    headers: authHeaders(accessToken)
-  });
-  return payload.map(normalizeDeadline);
+  return getDeadlines(accessToken);
 }
 
 export async function createDeadline(
-  accessToken: string,
+  _accessToken: string,
   payload: DeadlineCreateInput
 ): Promise<Deadline> {
-  const body: DeadlineCreateWire = {
-    title: payload.title,
-    target_date: payload.targetDate,
-    target_hours: payload.targetHours,
-    notes: payload.notes
-  };
+  const userId = await authenticatedUserId();
+  const { data, error } = await supabase
+    .from("deadlines")
+    .insert({
+      user_id: userId,
+      title: payload.title,
+      due_at: dateOnlyToUtcMidnight(payload.targetDate),
+      target_seconds: hoursToSeconds(payload.targetHours),
+      notes: payload.notes,
+      is_completed: false
+    })
+    .select("id,user_id,title,due_at,target_seconds,notes,is_completed")
+    .single<DeadlineRow>();
 
-  const response = await requestJson<DeadlineWire>("/api/v1/deadlines", {
-    method: "POST",
-    headers: authHeaders(accessToken),
-    body: JSON.stringify(body)
-  });
+  if (error) {
+    throw error;
+  }
 
-  return normalizeDeadline(response);
+  return normalizeDeadline(data);
 }
 
 export async function updateDeadline(
-  accessToken: string,
+  _accessToken: string,
   deadlineId: string,
   payload: DeadlineUpdateInput
 ): Promise<Deadline> {
-  const body: DeadlineUpdateWire = {
-    title: payload.title,
-    target_date: payload.targetDate,
-    target_hours: payload.targetHours,
-    notes: payload.notes,
-    is_completed: payload.isCompleted
+  const userId = await authenticatedUserId();
+  const body: Partial<DeadlineRow> = {
+    ...(payload.title !== undefined ? { title: payload.title } : {}),
+    ...(payload.targetDate !== undefined ? { due_at: dateOnlyToUtcMidnight(payload.targetDate) } : {}),
+    ...(payload.targetHours !== undefined ? { target_seconds: hoursToSeconds(payload.targetHours) } : {}),
+    ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
+    ...(payload.isCompleted !== undefined ? { is_completed: payload.isCompleted } : {})
   };
 
-  const response = await requestJson<DeadlineWire>(`/api/v1/deadlines/${deadlineId}`, {
-    method: "PUT",
-    headers: authHeaders(accessToken),
-    body: JSON.stringify(body)
-  });
+  const { data, error } = await supabase
+    .from("deadlines")
+    .update(body)
+    .eq("id", deadlineId)
+    .eq("user_id", userId)
+    .select("id,user_id,title,due_at,target_seconds,notes,is_completed")
+    .single<DeadlineRow>();
 
-  return normalizeDeadline(response);
+  if (error) {
+    throw error;
+  }
+
+  return normalizeDeadline(data);
 }
 
-export async function deleteDeadline(accessToken: string, deadlineId: string): Promise<void> {
-  await requestJson<void>(`/api/v1/deadlines/${deadlineId}`, {
-    method: "DELETE",
-    headers: authHeaders(accessToken)
-  });
+export async function deleteDeadline(_accessToken: string, deadlineId: string): Promise<void> {
+  const userId = await authenticatedUserId();
+  const { error } = await supabase
+    .from("deadlines")
+    .delete()
+    .eq("id", deadlineId)
+    .eq("user_id", userId);
+
+  if (error) {
+    throw error;
+  }
 }

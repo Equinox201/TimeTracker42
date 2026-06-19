@@ -1,31 +1,120 @@
 import { PropsWithChildren, createContext, useContext, useEffect, useMemo, useState } from "react";
+import type { Session as SupabaseSession, User as SupabaseUser } from "@supabase/supabase-js";
 
-import { exchangeOneTimeCode, logoutSession, refreshSession, type SessionPayload } from "./api/authApi";
+import { functionsBaseUrl } from "./functionsUrl";
+import { supabase } from "./supabase";
 
 type AuthStatus = "booting" | "ready";
+
+export type SessionUser = {
+  id: string;
+  login: string;
+  displayName: string;
+};
+
+export type SessionPayload = {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
+  accessTokenExpiresAt: string;
+  user: SessionUser;
+};
 
 type AuthContextValue = {
   status: AuthStatus;
   isAuthenticated: boolean;
   session: SessionPayload | null;
   startOAuthUrl: string;
-  completeOAuthSignIn: (oneTimeCode: string) => Promise<void>;
+  completeOAuthSignIn: (callbackUrl: string) => Promise<void>;
   validAccessToken: () => Promise<string>;
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function parseExpiry(isoValue: string): number {
-  const parsed = Date.parse(isoValue);
-  if (Number.isNaN(parsed)) {
-    return 0;
+type AuthExchangeResponse = {
+  token_hash?: unknown;
+  type?: unknown;
+};
+
+function stringMetadata(user: SupabaseUser, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = user.user_metadata[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
   }
-  return parsed;
+  return null;
 }
 
-function callbackUrl(): string {
-  return `${window.location.origin}/auth/callback`;
+function loginFromUser(user: SupabaseUser): string {
+  const metadataLogin = stringMetadata(user, ["login", "user_name", "preferred_username", "nickname"]);
+  if (metadataLogin) {
+    return metadataLogin;
+  }
+  if (user.email) {
+    return user.email.split("@")[0] ?? user.email;
+  }
+  return user.id;
+}
+
+function displayNameFromUser(user: SupabaseUser, login: string): string {
+  return stringMetadata(user, ["display_name", "full_name", "name"]) ?? user.email ?? login;
+}
+
+function accessTokenExpiresAt(session: SupabaseSession): string {
+  if (session.expires_at) {
+    return new Date(session.expires_at * 1000).toISOString();
+  }
+  return new Date(Date.now() + session.expires_in * 1000).toISOString();
+}
+
+function adaptSession(session: SupabaseSession | null): SessionPayload | null {
+  if (!session) {
+    return null;
+  }
+
+  const login = loginFromUser(session.user);
+  return {
+    accessToken: session.access_token,
+    refreshToken: session.refresh_token ?? "",
+    tokenType: session.token_type,
+    accessTokenExpiresAt: accessTokenExpiresAt(session),
+    user: {
+      id: session.user.id,
+      login,
+      displayName: displayNameFromUser(session.user, login)
+    }
+  };
+}
+
+function callbackParams(callbackUrl: string): { search: URLSearchParams; hash: URLSearchParams } {
+  const url = new URL(callbackUrl);
+  return {
+    search: url.searchParams,
+    hash: new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : url.hash)
+  };
+}
+
+async function exchangeCodeForTokenHash(exchangeCode: string): Promise<string> {
+  const response = await fetch(`${functionsBaseUrl()}/auth-exchange`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ exchange_code: exchangeCode })
+  });
+
+  if (!response.ok) {
+    throw new Error("Could not complete 42 sign-in. Please try again.");
+  }
+
+  const body = (await response.json()) as AuthExchangeResponse;
+  if (typeof body.token_hash !== "string" || body.type !== "email") {
+    throw new Error("Could not complete 42 sign-in. Please try again.");
+  }
+
+  return body.token_hash;
 }
 
 export function AuthProvider({ children }: PropsWithChildren) {
@@ -33,54 +122,121 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<SessionPayload | null>(null);
 
   const startOAuthUrl = useMemo(() => {
-    const redirect = encodeURIComponent(callbackUrl());
-    return `${import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000"}/api/v1/auth/42/start?mobile_redirect_uri=${redirect}`;
+    return "#";
   }, []);
 
   useEffect(() => {
-    setStatus("ready");
+    let isMounted = true;
+
+    const loadSession = async () => {
+      const { data, error } = await supabase.auth.getSession();
+      if (!isMounted) {
+        return;
+      }
+      if (error) {
+        setSession(null);
+      } else {
+        setSession(adaptSession(data.session));
+      }
+      setStatus("ready");
+    };
+
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(adaptSession(nextSession));
+      setStatus("ready");
+    });
+
+    void loadSession();
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const persistSession = (next: SessionPayload | null) => {
-    setSession(next);
-  };
+  const completeOAuthSignIn = async (callbackUrl: string) => {
+    const { search, hash } = callbackParams(callbackUrl);
+    const callbackError = search.get("error_description") ?? hash.get("error_description") ?? search.get("error") ?? hash.get("error");
+    if (callbackError) {
+      throw new Error(callbackError);
+    }
 
-  const completeOAuthSignIn = async (oneTimeCode: string) => {
-    const next = await exchangeOneTimeCode(oneTimeCode);
-    persistSession(next);
+    const exchangeCode = search.get("exchange_code") ?? hash.get("exchange_code");
+    if (exchangeCode) {
+      const tokenHash = await exchangeCodeForTokenHash(exchangeCode);
+      const { data, error } = await supabase.auth.verifyOtp({
+        token_hash: tokenHash,
+        type: "email"
+      });
+      if (error) {
+        setSession(null);
+        throw error;
+      }
+      setSession(adaptSession(data.session));
+      return;
+    }
+
+    const accessToken = hash.get("access_token");
+    const refreshToken = hash.get("refresh_token");
+    if (accessToken && refreshToken) {
+      const { data, error } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken
+      });
+      if (error) {
+        setSession(null);
+        throw error;
+      }
+      setSession(adaptSession(data.session));
+      return;
+    }
+
+    const code = search.get("code");
+    if (code) {
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+      if (error) {
+        setSession(null);
+        throw error;
+      }
+      setSession(adaptSession(data.session));
+      return;
+    }
+
+    const tokenHash = search.get("token_hash") ?? hash.get("token_hash");
+    if (tokenHash) {
+      const { data, error } = await supabase.auth.verifyOtp({
+        token_hash: tokenHash,
+        type: "email"
+      });
+      if (error) {
+        setSession(null);
+        throw error;
+      }
+      setSession(adaptSession(data.session));
+      return;
+    }
+
+    throw new Error("Missing Supabase auth callback parameters.");
   };
 
   const validAccessToken = async () => {
-    if (!session) {
+    const { data, error } = await supabase.auth.getSession();
+    if (error || !data.session) {
+      setSession(null);
       throw new Error("Not authenticated");
     }
 
-    const expiresAt = parseExpiry(session.accessTokenExpiresAt);
-    const refreshWindow = Date.now() + 60_000;
-    if (expiresAt > refreshWindow) {
-      return session.accessToken;
-    }
-
-    try {
-      const refreshed = await refreshSession(session.refreshToken);
-      persistSession(refreshed);
-      return refreshed.accessToken;
-    } catch (error) {
-      persistSession(null);
-      throw error;
-    }
+    setSession(adaptSession(data.session));
+    return data.session.access_token;
   };
 
   const signOut = async () => {
-    const refresh = session?.refreshToken ?? "";
-    persistSession(null);
-    if (!refresh) {
-      return;
-    }
-    try {
-      await logoutSession(refresh);
-    } catch {
-      // Best-effort logout; local session is already cleared.
+    setSession(null);
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      throw error;
     }
   };
 
