@@ -132,11 +132,13 @@ function dateKeyInSingapore(value: Date): string {
   return new Date(value.getTime() + SINGAPORE_OFFSET_MS).toISOString().slice(0, 10);
 }
 
-function singaporeMonthStart(value: Date): Date {
+function singaporeHistoricalWindowStart(value: Date): Date {
   const local = new Date(value.getTime() + SINGAPORE_OFFSET_MS);
   const year = local.getUTCFullYear();
-  const month = String(local.getUTCMonth() + 1).padStart(2, "0");
-  return new Date(`${year}-${month}-01T00:00:00+08:00`);
+  const monthIndex = local.getUTCMonth();
+  const windowStart = new Date(Date.UTC(year, monthIndex - 5, 1));
+  const month = String(windowStart.getUTCMonth() + 1).padStart(2, "0");
+  return new Date(`${windowStart.getUTCFullYear()}-${month}-01T00:00:00+08:00`);
 }
 
 function singaporeDayStartMs(day: string): number {
@@ -624,7 +626,11 @@ Deno.serve(async (req) => {
 
     const now = new Date();
     const nowIso = now.toISOString();
-    const windowStart = singaporeMonthStart(now);
+    // Keep manual sync bounded while still making the six-month History view
+    // useful: fetch from the first day of the month five months before the
+    // current Singapore month through now. Active sessions are fetched
+    // separately below so current-day live time is included.
+    const windowStart = singaporeHistoricalWindowStart(now);
     const windowStartIso = windowStart.toISOString();
     const [rangeLocations, activeLocations] = await Promise.all([
       fetchPaginatedLocations(token.access_token, profile.forty_two_user_id, {
