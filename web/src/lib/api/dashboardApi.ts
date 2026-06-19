@@ -26,6 +26,8 @@ type SyncRunRow = {
   finished_at: string | null;
 };
 
+type SyncStatus = SyncRunRow["status"];
+
 export type DashboardSummary = {
   hoursToday: number;
   hoursTodayFinalized: number;
@@ -44,6 +46,9 @@ export type DashboardSummary = {
   isStale: boolean;
   staleAgeHours: number | null;
   lastSyncedAt: string | null;
+  syncStatus: SyncStatus | null;
+  syncStartedAt: string | null;
+  syncFinishedAt: string | null;
   todayIsLive: boolean;
   liveCheckedAt: string | null;
 };
@@ -64,6 +69,9 @@ export type AttendanceHistory = {
   isStale: boolean;
   staleAgeHours: number | null;
   lastSyncedAt: string | null;
+  syncStatus: SyncStatus | null;
+  syncStartedAt: string | null;
+  syncFinishedAt: string | null;
   todayIsLive: boolean;
   liveCheckedAt: string | null;
   days: AttendanceHistoryDay[];
@@ -255,13 +263,47 @@ async function latestSyncRun(userId: string): Promise<SyncRunRow | null> {
   return data;
 }
 
-function syncMetadata(syncRun: SyncRunRow | null): Pick<DashboardSummary, "isStale" | "staleAgeHours" | "lastSyncedAt" | "todayIsLive" | "liveCheckedAt"> {
-  const lastSyncedAt = syncRun?.finished_at ?? syncRun?.started_at ?? null;
+async function latestSuccessfulSyncRun(userId: string): Promise<SyncRunRow | null> {
+  const { data, error } = await supabase
+    .from("sync_runs")
+    .select("id,status,started_at,finished_at")
+    .eq("user_id", userId)
+    .eq("status", "success")
+    .order("finished_at", { ascending: false, nullsFirst: false })
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<SyncRunRow>();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+function syncMetadata(
+  latestRun: SyncRunRow | null,
+  latestSuccess: SyncRunRow | null
+): Pick<
+  DashboardSummary,
+  | "isStale"
+  | "staleAgeHours"
+  | "lastSyncedAt"
+  | "syncStatus"
+  | "syncStartedAt"
+  | "syncFinishedAt"
+  | "todayIsLive"
+  | "liveCheckedAt"
+> {
+  const lastSyncedAt = latestSuccess?.finished_at ?? null;
   if (!lastSyncedAt) {
     return {
       isStale: true,
       staleAgeHours: null,
       lastSyncedAt: null,
+      syncStatus: latestRun?.status ?? null,
+      syncStartedAt: latestRun?.started_at ?? null,
+      syncFinishedAt: latestRun?.finished_at ?? null,
       todayIsLive: false,
       liveCheckedAt: null
     };
@@ -270,9 +312,12 @@ function syncMetadata(syncRun: SyncRunRow | null): Pick<DashboardSummary, "isSta
   const ageMs = Date.now() - new Date(lastSyncedAt).getTime();
   const staleAgeHours = Number.isFinite(ageMs) ? Number((ageMs / 3_600_000).toFixed(1)) : null;
   return {
-    isStale: staleAgeHours === null ? true : staleAgeHours >= 24,
+    isStale: staleAgeHours === null ? true : staleAgeHours >= 6,
     staleAgeHours,
     lastSyncedAt,
+    syncStatus: latestRun?.status ?? null,
+    syncStartedAt: latestRun?.started_at ?? null,
+    syncFinishedAt: latestRun?.finished_at ?? null,
     todayIsLive: false,
     liveCheckedAt: null
   };
@@ -303,9 +348,10 @@ export async function getDashboardSummary(_accessToken: string): Promise<Dashboa
   const previousMonthStart = dateKey(previousMonthStartDate);
   const previousMonthEnd = dateKey(endOfUtcMonth(previousMonthStartDate));
 
-  const [attendanceRows, syncRun] = await Promise.all([
+  const [attendanceRows, syncRun, successfulSyncRun] = await Promise.all([
     listAttendance(userId, previousMonthStart, monthEnd),
-    latestSyncRun(userId)
+    latestSyncRun(userId),
+    latestSuccessfulSyncRun(userId)
   ]);
 
   const todaySeconds = sumSeconds(attendanceRows, todayKey, todayKey);
@@ -334,7 +380,7 @@ export async function getDashboardSummary(_accessToken: string): Promise<Dashboa
     weekVsPreviousWeekHours: secondsToHours(weekSeconds - previousWeekSeconds),
     monthVsPreviousMonthHours: secondsToHours(monthSeconds - previousMonthSeconds),
     paceMode: goals.pace_mode,
-    ...syncMetadata(syncRun)
+    ...syncMetadata(syncRun, successfulSyncRun)
   };
 }
 
@@ -343,9 +389,10 @@ export async function getAttendanceHistory(
   range: AttendanceRangeInput
 ): Promise<AttendanceHistory> {
   const userId = await authenticatedUserId();
-  const [attendanceRows, syncRun] = await Promise.all([
+  const [attendanceRows, syncRun, successfulSyncRun] = await Promise.all([
     listAttendance(userId, range.from, range.to),
-    latestSyncRun(userId)
+    latestSyncRun(userId),
+    latestSuccessfulSyncRun(userId)
   ]);
   const days = attendanceRows.map(mapHistoryDay);
   const totalSeconds = attendanceRows.reduce((sum, row) => sum + row.seconds, 0);
@@ -356,7 +403,7 @@ export async function getAttendanceHistory(
     totalDays: countDaysInclusive(range.from, range.to),
     totalHours: secondsToHours(totalSeconds),
     days,
-    ...syncMetadata(syncRun)
+    ...syncMetadata(syncRun, successfulSyncRun)
   };
 }
 

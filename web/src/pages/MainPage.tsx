@@ -13,7 +13,7 @@ import {
   type DashboardSummary
 } from "../lib/api/dashboardApi";
 import { useAuth } from "../lib/auth";
-import { deltaHoursReadable, hoursToReadable, progressPercent } from "../lib/formatters";
+import { deltaHoursReadable, hoursToReadable, progressPercent, shortDateTime } from "../lib/formatters";
 
 function errorText(error: unknown): string {
   if (error instanceof Error) {
@@ -49,6 +49,16 @@ function statusTag(summary: DashboardSummary): { text: string; className: string
     text: "Behind Pace",
     className: "border-amber-400/40 bg-amber-400/15 text-tt42-text"
   };
+}
+
+function syncSuccessText(data: { insertedDays: number; updatedDays: number; unchangedDays: number; finishedAt: string }): string {
+  const changedDays = data.insertedDays + data.updatedDays;
+  const unchanged = data.unchangedDays;
+  const detail =
+    changedDays > 0
+      ? `${changedDays} day${changedDays === 1 ? "" : "s"} updated`
+      : `${unchanged} day${unchanged === 1 ? "" : "s"} unchanged`;
+  return `Sync complete at ${shortDateTime(data.finishedAt)}. ${detail}.`;
 }
 
 export function MainPage() {
@@ -130,8 +140,7 @@ export function MainPage() {
         ? summary.requiredHoursPerRemainingWeekday
         : summary.requiredHoursPerRemainingDay;
 
-  const displayError =
-    dashboardQuery.error ?? monthHistoryQuery.error ?? syncMutation.error ?? null;
+  const displayError = dashboardQuery.error ?? monthHistoryQuery.error ?? null;
 
   if (dashboardQuery.isPending) {
     return (
@@ -199,7 +208,22 @@ export function MainPage() {
           isStale={summary.isStale}
           staleAgeHours={summary.staleAgeHours}
           lastSyncedAt={summary.lastSyncedAt}
+          syncStatus={summary.syncStatus}
+          syncStartedAt={summary.syncStartedAt}
+          syncFinishedAt={summary.syncFinishedAt}
         />
+
+        {syncMutation.data ? (
+          <div className="mt-3 rounded-xl border border-tt42-mint/35 bg-tt42-mint/10 px-3 py-2 text-sm text-tt42-text">
+            {syncSuccessText(syncMutation.data)}
+          </div>
+        ) : null}
+
+        {syncMutation.error ? (
+          <div className="mt-3 rounded-xl border border-tt42-danger/40 bg-tt42-danger/10 px-3 py-2 text-sm text-tt42-text">
+            {errorText(syncMutation.error)}
+          </div>
+        ) : null}
 
         {summary.todayIsLive ? (
           <div className="mt-3 rounded-xl border border-tt42-teal/35 bg-tt42-teal/10 px-3 py-2 text-sm text-tt42-text">

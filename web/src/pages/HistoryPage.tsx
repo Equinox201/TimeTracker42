@@ -266,6 +266,9 @@ export function HistoryPage() {
           isStale={history.isStale}
           staleAgeHours={history.staleAgeHours}
           lastSyncedAt={history.lastSyncedAt}
+          syncStatus={history.syncStatus}
+          syncStartedAt={history.syncStartedAt}
+          syncFinishedAt={history.syncFinishedAt}
         />
 
         {history.todayIsLive ? (
