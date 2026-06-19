@@ -394,6 +394,9 @@ verify_jwt = false
 [functions.auth-exchange]
 verify_jwt = false
 
+[functions.forty-two-sync-manual]
+# verify_jwt is intentionally omitted so Supabase's default JWT verification applies.
+
 [analytics]
 enabled = true
 port = 54327
