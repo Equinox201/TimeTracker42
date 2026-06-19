@@ -1,6 +1,6 @@
 # TimeTracker42 Web
 
-Mobile-first web frontend for TimeTracker42, backed by Supabase Auth and Supabase data reads during the rewrite.
+Mobile-first React frontend for TimeTracker42. The production frontend is deployed on Cloudflare Pages and uses Supabase Auth, Supabase Postgres/RLS, and Supabase Edge Functions for 42 OAuth and manual sync.
 
 ## Local Run
 
@@ -11,7 +11,11 @@ npm install
 npm run dev
 ```
 
-Default URL: `http://127.0.0.1:5173`
+Default URL:
+
+```text
+http://127.0.0.1:5173
+```
 
 ## Build
 
@@ -21,31 +25,41 @@ npm run build
 npm run preview
 ```
 
-## Required Backend Env (for web auth + CORS)
-
-Set these in `backend/.env` and restart backend:
+## Frontend Environment Variables
 
 ```env
-WEB_OAUTH_REDIRECT_URIS=http://127.0.0.1:5173/auth/callback,http://localhost:5173/auth/callback
-WEB_ALLOWED_ORIGINS=http://127.0.0.1:5173,http://localhost:5173
+VITE_SUPABASE_URL=
+VITE_SUPABASE_PUBLISHABLE_KEY=
+VITE_SUPABASE_FUNCTIONS_URL=
+VITE_ENABLE_EMAIL_OTP_FALLBACK=false
 ```
 
-## Milestones Implemented
+`VITE_ENABLE_EMAIL_OTP_FALLBACK=true` shows the development-only email OTP fallback. Production should keep it false or unset.
 
-1. App shell, routing, theme, PWA base
-2. Auth session integration (OTC exchange)
-3. Main page wired (rings, KPIs, stale banner, month calendar, manual sync)
-4. History page wired (6-month bars, range summary, month picker, month summary)
-5. Settings page wired (goals save flow, pace controls, deadlines CRUD)
-6. Release polish (route code splitting, offline banner, chunk splitting)
-7. Hardening pass (global UI error boundary + API timeout/network handling)
+## Runtime Dependencies
 
-## Pre-release Smoke Checklist
+- Supabase Auth for browser sessions.
+- Supabase RLS-protected tables for dashboard, history, goals, and deadlines.
+- `forty-two-oauth-start`, `forty-two-oauth-callback`, and `auth-exchange` for 42 login.
+- `forty-two-sync-manual` for Sync Now.
 
-1. Login flow: `/login` -> 42 OAuth -> `/auth/callback` -> `/app/main`
-2. Main page: refresh + sync button update dashboard values
-3. History page: month chip changes calendar and month summary
-4. Settings: save goals updates Main/History after refresh
-5. Deadlines: add, complete toggle, delete
-6. Offline: disable network in browser devtools, verify offline banner appears
-7. Build gate: `npm run typecheck && npm run build`
+## Cloudflare Pages
+
+Recommended settings:
+
+```text
+Root directory: web
+Build command: npm run build
+Build output directory: dist
+```
+
+Set the frontend environment variables in Cloudflare Pages.
+
+## Smoke Checklist
+
+1. Login flow: `/login` -> `Continue with 42` -> 42 OAuth -> `/auth/callback` -> `/app/main`.
+2. Main page: Sync Now completes and updates last-sync status.
+3. History page: six-month attendance history loads after sync.
+4. Settings: goals and deadlines read/write through Supabase.
+5. Email OTP fallback remains hidden unless `VITE_ENABLE_EMAIL_OTP_FALLBACK=true`.
+6. Build gate: `npm run typecheck && npm run build`.

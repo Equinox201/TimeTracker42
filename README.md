@@ -1,131 +1,122 @@
 # TimeTracker42
 
-A full-stack attendance tracking platform built around the 42 API.
+TimeTracker42 is a mobile-first attendance tracker for 42 students. It signs users in with 42 OAuth, syncs official campus location sessions, and turns that attendance history into dashboard progress, monthly history, goals, deadlines, stale-data warnings, and manual sync feedback.
 
-Try out the website here: https://timetracker42.pages.dev/
-
-I built this project to solve a real personal problem: tracking campus attendance against monthly visa requirements (90h/month) with clear pacing, goals, and deadline visibility.
+Try the web app: https://timetracker42.pages.dev/
 
 ## Preview
 
 ![TimeTracker42 feature preview](assets/Feature_visual.png)
 
-## Why This Project Exists
+## What It Does
 
-At 42, attendance data is the source of truth for progress and compliance. I wanted a production-minded system that:
-- logs in securely with 42 OAuth
-- syncs and preserves attendance history from the 42 API
-- turns raw durations into meaningful KPIs and pace calculations
-- works on iPhone and mobile web
-- is architected to scale from one user to multiple users
+- Secure 42 OAuth login through Supabase Edge Functions.
+- Manual attendance sync from the 42 API.
+- Daily, weekly, and monthly attendance progress.
+- Six-month attendance history and monthly calendar views.
+- User-owned goals and deadlines stored in Supabase Postgres.
+- Stale/failed/last-sync status from `sync_runs`.
+- Mobile-first web UI suitable for iPhone Safari and PWA-style use.
 
-## Key Features
-
-- 🔐 Secure login via 42 OAuth (no credentials stored client-side)
-- 📊 Activity-style rings for daily, weekly, and monthly progress
-- 📅 Calendar visualization of attendance performance
-- 🎯 Dynamic goal adjustment based on remaining time
-- 🔄 Sync with 42 API + persistent storage
-- 📉 Historical trends and monthly comparisons
-- ⚠️ Stale data detection and sync indicators
-- 📱 Mobile-first design (iOS app + PWA)
-
-## Architecture
+## Current Architecture
 
 ```text
-[iOS SwiftUI App] ----\
-                       -> [FastAPI Backend] -> [42 API]
-[React Web App]  -----/          |
-                                 v
-                           [PostgreSQL]
+[Cloudflare Pages: React/Vite Web App]
+          |
+          | Supabase Auth session + RLS-protected table reads/writes
+          v
+[Supabase Auth] ---- [Supabase Postgres + RLS]
+          ^
+          |
+[Supabase Edge Functions]
+  - forty-two-oauth-start
+  - forty-two-oauth-callback
+  - auth-exchange
+  - forty-two-sync-manual
+          |
+          v
+       [42 API]
 ```
 
-## What I Built
+### Frontend
 
-### Backend (FastAPI + PostgreSQL)
-- OAuth flow with 42 (start, callback, one-time mobile/web code exchange)
-- JWT access + refresh session model
-- Encrypted storage for provider OAuth tokens at rest
-- Attendance sync pipeline from `/v2/users/:id/locations_stats`
-- Persistent normalized attendance-by-day data model
-- KPI endpoints for dashboard, history, goals, and deadlines
-- Manual sync endpoint + scheduled hourly sync job
-- Alembic migrations and test coverage
+- Hosted on Cloudflare Pages.
+- Built with React, TypeScript, Vite, Tailwind CSS, React Query, and Recharts.
+- Reads dashboard, history, settings, goals, and deadlines directly from Supabase under RLS.
+- Calls Edge Functions for 42 OAuth and manual sync.
 
-### iOS App (SwiftUI)
-- Login flow integrated with backend OAuth exchange
-- Dashboard with activity-style rings and KPI cards
-- Attendance history screens and settings flows
-- Goal and deadline management UI
-- Keychain-based token persistence
-- iPhone-only target configuration
+### Auth
 
-### Web App (React + TypeScript + Vite + Tailwind)
-- Mobile-first PWA-like experience (great on iPhone Safari)
-- Three main app pages: Main, History, Settings
-- Triple progress rings (day/week/month), calendars, monthly trends
-- Goal + deadline management connected to backend APIs
-- Session and networking hardening pass
+- Supabase Auth owns the browser session.
+- 42 OAuth is implemented with custom Supabase Edge Functions:
+  - `forty-two-oauth-start` creates a hashed OAuth state and redirects to 42.
+  - `forty-two-oauth-callback` validates state, exchanges the 42 code server-side, stores 42 tokens, and creates a one-time exchange code.
+  - `auth-exchange` redeems the exchange code and returns a Supabase `token_hash` for the browser to verify with Supabase Auth.
+- Temporary email OTP fallback exists for development and is hidden by default.
 
-## Security and Reliability Highlights
+### Data
 
-- 42 client secret stays on backend only
-- OAuth state verification and redirect URI allowlisting
-- One-time code exchange with replay protection
-- Concurrency-safe attendance upsert strategy
-- Production docs disabled outside local/test
-- Endpoint rate limiting on auth + sync routes
-- Runtime validation to reject placeholder secrets in non-local envs
-- Stale data detection based on last successful sync
+- Supabase Postgres stores user-owned data:
+  - `profiles`
+  - `goals`
+  - `deadlines`
+  - `attendance_daily`
+  - `location_sessions`
+  - `sync_runs`
+- RLS protects user-owned tables.
+- `forty_two_tokens`, `oauth_states`, and `auth_exchange_codes` are internal service-role tables and are not directly readable by frontend clients.
 
-## Tech Stack
+### Manual Sync
 
-- Backend: FastAPI, SQLAlchemy, Alembic, PostgreSQL, httpx, jose
-- iOS: SwiftUI, native URLSession, Keychain
-- Web: React, TypeScript, Vite, Tailwind, React Query, Recharts
-- Tooling: Pytest, Ruff, GitHub Actions CI, Xcode build
+- `forty-two-sync-manual` requires a Supabase JWT.
+- It reads the authenticated user's stored 42 token server-side.
+- It refreshes the 42 token when needed.
+- It fetches 42 location sessions from:
+
+```text
+GET https://api.intra.42.fr/v2/users/:id/locations
+```
+
+- Manual sync currently fetches a bounded recent-history window: from the first day of the month five months before the current month through now, plus active sessions.
+- It writes normalized sessions to `location_sessions`, recomputes touched daily totals in `attendance_daily`, and records status in `sync_runs`.
 
 ## Repository Structure
 
 ```text
-backend/   FastAPI service, models, migrations, tests
-ios/       SwiftUI app project and source
-web/       React + TypeScript mobile-first frontend
-docs/      runbook and architecture notes
+web/       React + TypeScript frontend for Cloudflare Pages
+supabase/  Database migrations and Edge Functions
+docs/      Architecture, runbook, and function contract notes
+ios/       Legacy iOS project kept for reference while the web app is prioritized
 ```
 
-## Local Setup
+## Frontend Environment Variables
 
-### 1) Backend
+Set these in Cloudflare Pages and local `.env` files:
 
-```bash
-cd backend
-cp .env.example .env
-python3.12 -m venv .venv
-source .venv/bin/activate
-pip install -e '.[dev]'
+```env
+VITE_SUPABASE_URL=
+VITE_SUPABASE_PUBLISHABLE_KEY=
+VITE_SUPABASE_FUNCTIONS_URL=
+VITE_ENABLE_EMAIL_OTP_FALLBACK=false
 ```
 
-Start PostgreSQL (local Docker):
+`VITE_ENABLE_EMAIL_OTP_FALLBACK` must be exactly `true` to show the development email OTP fallback. Production should leave it `false` or unset.
 
-```bash
-docker compose up -d db
+## Supabase Edge Function Secrets
+
+Set these with Supabase secrets. Do not put these in frontend env vars.
+
+```text
+EDGE_SUPABASE_URL
+EDGE_SUPABASE_SERVICE_ROLE_KEY
+FORTY_TWO_CLIENT_ID
+FORTY_TWO_CLIENT_SECRET
+FORTY_TWO_REDIRECT_URI
+FORTY_TWO_AUTH_EMAIL_DOMAIN
+APP_ORIGIN
 ```
 
-Run migrations and API:
-
-```bash
-alembic upgrade head
-uvicorn app.main:app --reload
-```
-
-Health check:
-
-```bash
-curl http://127.0.0.1:8000/api/v1/health
-```
-
-### 2) Web App
+## Local Web Development
 
 ```bash
 cd web
@@ -134,55 +125,58 @@ npm install
 npm run dev
 ```
 
-Default URL: `http://127.0.0.1:5173`
-
-### 3) iOS App
-
-Open:
+Default local URL:
 
 ```text
-ios/CampusTracker.xcodeproj
+http://127.0.0.1:5173
 ```
 
-Select an iPhone simulator/device and run `CampusTracker`.
+## Deployment
 
-## Required Environment Variables
+### Frontend: Cloudflare Pages
 
-Use `backend/.env.example` and `web/.env.example` as templates.
+Deploy the `web/` app through Cloudflare Pages.
 
-Critical backend values for non-local deployment:
-- `APP_ENV` (set to `production`)
-- `DATABASE_URL`
-- `JWT_SECRET`
-- `TOKEN_ENCRYPTION_KEY`
-- `FORTYTWO_CLIENT_ID`
-- `FORTYTWO_CLIENT_SECRET`
-- `FORTYTWO_REDIRECT_URI`
-- `WEB_OAUTH_REDIRECT_URIS`
-- `WEB_ALLOWED_ORIGINS`
+Recommended settings:
 
-## Key API Surface
+```text
+Root directory: web
+Build command: npm run build
+Build output directory: dist
+```
 
-- `GET /api/v1/auth/42/start`
-- `GET /api/v1/auth/42/callback`
-- `POST /api/v1/auth/mobile/exchange`
-- `POST /api/v1/auth/refresh`
-- `POST /api/v1/auth/logout`
-- `GET /api/v1/dashboard/summary`
-- `GET /api/v1/attendance/history`
-- `PUT /api/v1/goals/current`
-- `GET/POST/PUT/DELETE /api/v1/deadlines`
-- `POST /api/v1/sync/manual`
+Configure the frontend environment variables listed above in Cloudflare Pages.
 
-## Quality Gates
+### Supabase Database
 
-Backend tests:
+Apply migrations with:
 
 ```bash
-cd backend
-source .venv/bin/activate
-pytest -q
+npx supabase db push
 ```
+
+### Supabase Edge Functions
+
+Deploy functions with:
+
+```bash
+npx supabase functions deploy forty-two-oauth-start
+npx supabase functions deploy forty-two-oauth-callback
+npx supabase functions deploy auth-exchange
+npx supabase functions deploy forty-two-sync-manual
+```
+
+Set or update secrets with:
+
+```bash
+npx supabase secrets set EDGE_SUPABASE_URL=... EDGE_SUPABASE_SERVICE_ROLE_KEY=...
+npx supabase secrets set FORTY_TWO_CLIENT_ID=... FORTY_TWO_CLIENT_SECRET=...
+npx supabase secrets set FORTY_TWO_REDIRECT_URI=... FORTY_TWO_AUTH_EMAIL_DOMAIN=... APP_ORIGIN=...
+```
+
+Do not commit actual secret values.
+
+## Quality Gates
 
 Web checks:
 
@@ -192,12 +186,23 @@ npm run typecheck
 npm run build
 ```
 
-iOS build:
+Edge Functions are Deno/Supabase functions. Run Deno checks locally if `deno` is installed, or validate through deployment/runtime testing.
 
-```bash
-xcodebuild -project ios/CampusTracker.xcodeproj -scheme CampusTracker -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build
-```
+## Security
 
-## Current Status
+- 42 access and refresh tokens stay server-side in Supabase.
+- The Supabase service role key is used only inside Edge Functions.
+- Frontend clients use Supabase Auth sessions and RLS-protected access.
+- User-owned tables are protected by RLS policies.
+- OAuth state values are stored only as SHA-256 hashes.
+- Auth exchange codes are stored only as SHA-256 hashes and are single-use.
+- 42 client secret is never exposed to the frontend.
+- Sync errors store safe short messages only, not raw payloads, tokens, or stack traces.
 
-This project is actively developed and already functional across backend, iOS, and web. Current focus is production deployment + public portfolio polish.
+## Roadmap
+
+- Scheduled sync through Supabase Edge Functions.
+- Token encryption or Vault-backed token storage.
+- Richer live-session display on dashboard/history.
+- Remove the email OTP fallback once production 42 login has enough burn-in.
+- Optional reconciliation/backfill using additional 42 API sources if needed.
