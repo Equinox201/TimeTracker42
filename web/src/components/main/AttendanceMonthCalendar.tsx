@@ -1,10 +1,19 @@
-import { endOfMonth, format, getDay, startOfMonth, startOfWeek } from "date-fns";
-
 import { type AttendanceHistoryDay } from "../../lib/api/dashboardApi";
-import { hoursToReadable, monthYearLabel } from "../../lib/formatters";
+import { hoursToReadable } from "../../lib/formatters";
+import {
+  addSingaporeDaysKey,
+  addSingaporeMonthsKey,
+  dayKeyToSingaporeCalendarDate,
+  singaporeDayKey,
+  singaporeDayOfMonthLabel,
+  singaporeMonthKey,
+  singaporeMonthLongLabel,
+  singaporeWeekStartKeyFromDayKey
+} from "../../lib/singaporeDate";
 
 type AttendanceMonthCalendarProps = {
   month: Date;
+  monthKey?: string;
   dailyGoalHours: number;
   weeklyGoalHours: number;
   days: AttendanceHistoryDay[];
@@ -20,10 +29,6 @@ const weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
-}
-
-function dayKey(value: Date): string {
-  return format(value, "yyyy-MM-dd");
 }
 
 function shortHours(value: number): string {
@@ -62,11 +67,8 @@ function visualForState(state: DayState, hours: number, dailyGoalHours: number):
   return { background: `rgba(42, 50, 68, ${opacity.toFixed(3)})` };
 }
 
-function dayState(date: Date, hours: number, dailyGoalHours: number): DayState {
-  const today = new Date();
-  const todayKey = dayKey(today);
-  const targetKey = dayKey(date);
-
+function dayState(targetKey: string, hours: number, dailyGoalHours: number): DayState {
+  const todayKey = singaporeDayKey();
   if (targetKey > todayKey) {
     return "future";
   }
@@ -84,20 +86,26 @@ function dayState(date: Date, hours: number, dailyGoalHours: number): DayState {
   return "missed";
 }
 
-export function AttendanceMonthCalendar({ month, dailyGoalHours, weeklyGoalHours, days }: AttendanceMonthCalendarProps) {
-  const monthStart = startOfMonth(month);
-  const monthEnd = endOfMonth(month);
+export function AttendanceMonthCalendar({
+  month,
+  monthKey,
+  dailyGoalHours,
+  weeklyGoalHours,
+  days
+}: AttendanceMonthCalendarProps) {
+  // attendance_daily.day is keyed by Asia/Singapore, so calendar cells are generated from Singapore day keys.
+  const activeMonthKey = monthKey ?? singaporeMonthKey(month);
+  const monthStartKey = `${activeMonthKey}-01`;
+  const monthEndKey = addSingaporeDaysKey(`${addSingaporeMonthsKey(activeMonthKey, 1)}-01`, -1);
 
   const byDate = new Map(days.map((day) => [day.day, day]));
 
   const weeklyTotals = new Map<string, number>();
   for (const day of days) {
-    const date = new Date(`${day.day}T00:00:00`);
-    if (Number.isNaN(date.getTime())) {
+    if (Number.isNaN(dayKeyToSingaporeCalendarDate(day.day).getTime())) {
       continue;
     }
-    const weekStart = startOfWeek(date, { weekStartsOn: 1 });
-    const key = dayKey(weekStart);
+    const key = singaporeWeekStartKeyFromDayKey(day.day);
     weeklyTotals.set(key, (weeklyTotals.get(key) ?? 0) + day.hours);
   }
 
@@ -110,18 +118,19 @@ export function AttendanceMonthCalendar({ month, dailyGoalHours, weeklyGoalHours
     }
   }
 
-  const dayDates: Array<Date | null> = [];
-  const leadingPadding = (getDay(monthStart) + 6) % 7;
+  const dayKeys: Array<string | null> = [];
+  const monthStart = dayKeyToSingaporeCalendarDate(monthStartKey);
+  const leadingPadding = (monthStart.getUTCDay() + 6) % 7;
   for (let i = 0; i < leadingPadding; i += 1) {
-    dayDates.push(null);
+    dayKeys.push(null);
   }
 
-  for (let cursor = new Date(monthStart); cursor <= monthEnd; cursor.setDate(cursor.getDate() + 1)) {
-    dayDates.push(new Date(cursor));
+  for (let cursor = monthStartKey; cursor <= monthEndKey; cursor = addSingaporeDaysKey(cursor, 1)) {
+    dayKeys.push(cursor);
   }
 
-  while (dayDates.length % 7 !== 0) {
-    dayDates.push(null);
+  while (dayKeys.length % 7 !== 0) {
+    dayKeys.push(null);
   }
 
   return (
@@ -129,7 +138,7 @@ export function AttendanceMonthCalendar({ month, dailyGoalHours, weeklyGoalHours
       <header className="mb-3 flex items-center justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.16em] text-tt42-muted">Monthly Attendance Calendar</p>
-          <h3 className="text-lg font-semibold text-tt42-text">{monthYearLabel(month)}</h3>
+          <h3 className="text-lg font-semibold text-tt42-text">{singaporeMonthLongLabel(activeMonthKey)}</h3>
         </div>
         <p className="text-xs text-tt42-muted">Goal {hoursToReadable(dailyGoalHours)} / day</p>
       </header>
@@ -141,18 +150,17 @@ export function AttendanceMonthCalendar({ month, dailyGoalHours, weeklyGoalHours
       </div>
 
       <div className="mt-2 grid grid-cols-7 gap-1">
-        {dayDates.map((date, index) => {
-          if (!date) {
+        {dayKeys.map((iso, index) => {
+          if (!iso) {
             return <div key={`empty-${index}`} className="h-14" />;
           }
 
-          const iso = dayKey(date);
           const value = byDate.get(iso);
           const hours = value?.hours ?? 0;
-          const state = dayState(date, hours, dailyGoalHours);
+          const state = dayState(iso, hours, dailyGoalHours);
           const visual = visualForState(state, hours, dailyGoalHours);
-          const today = dayKey(new Date()) === iso;
-          const weekStart = dayKey(startOfWeek(date, { weekStartsOn: 1 }));
+          const today = singaporeDayKey() === iso;
+          const weekStart = singaporeWeekStartKeyFromDayKey(iso);
           const weekAchieved = achievedWeekStarts.has(weekStart);
 
           return (
@@ -165,7 +173,7 @@ export function AttendanceMonthCalendar({ month, dailyGoalHours, weeklyGoalHours
               ].join(" ")}
               style={{ backgroundColor: visual.background }}
             >
-              <span className="text-xs font-semibold text-tt42-text">{format(date, "d")}</span>
+              <span className="text-xs font-semibold text-tt42-text">{singaporeDayOfMonthLabel(iso)}</span>
               <span className="mt-0.5 text-[10px] text-tt42-muted">{shortHours(hours)}</span>
             </div>
           );

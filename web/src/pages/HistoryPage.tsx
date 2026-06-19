@@ -1,14 +1,4 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import {
-  eachMonthOfInterval,
-  endOfMonth,
-  format,
-  isSameMonth,
-  parseISO,
-  startOfMonth,
-  startOfWeek,
-  subMonths
-} from "date-fns";
 import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
@@ -30,10 +20,18 @@ import {
   type AttendanceHistoryDay
 } from "../lib/api/dashboardApi";
 import { useAuth } from "../lib/auth";
-import { hoursToReadable, monthYearLabel } from "../lib/formatters";
+import { hoursToReadable } from "../lib/formatters";
+import {
+  eachSingaporeMonthKey,
+  singaporeCalendarMonthDate,
+  singaporeHistoryRangeKeys,
+  singaporeMonthKey,
+  singaporeMonthLongLabel,
+  singaporeMonthShortLabel,
+  singaporeWeekStartKeyFromDayKey
+} from "../lib/singaporeDate";
 
 type MonthlyPoint = {
-  monthDate: Date;
   monthKey: string;
   monthShort: string;
   monthLong: string;
@@ -54,42 +52,29 @@ function errorText(error: unknown): string {
   return "Unexpected error";
 }
 
-function monthKey(date: Date): string {
-  return format(date, "yyyy-MM");
-}
-
-function buildMonthlyPoints(days: AttendanceHistoryDay[], fromDate: Date, toDate: Date): MonthlyPoint[] {
+function buildMonthlyPoints(days: AttendanceHistoryDay[], fromDay: string, toDay: string): MonthlyPoint[] {
   const totals = new Map<string, number>();
 
   for (const day of days) {
-    const parsed = parseISO(day.day);
-    if (Number.isNaN(parsed.getTime())) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day.day)) {
       continue;
     }
-    const key = monthKey(startOfMonth(parsed));
+    const key = day.day.slice(0, 7);
     totals.set(key, (totals.get(key) ?? 0) + day.hours);
   }
 
-  return eachMonthOfInterval({ start: startOfMonth(fromDate), end: startOfMonth(toDate) }).map((date) => {
-    const key = monthKey(date);
+  return eachSingaporeMonthKey(fromDay, toDay).map((key) => {
     return {
-      monthDate: date,
       monthKey: key,
-      monthShort: format(date, "MMM"),
-      monthLong: monthYearLabel(date),
+      monthShort: singaporeMonthShortLabel(key),
+      monthLong: singaporeMonthLongLabel(key),
       hours: totals.get(key) ?? 0
     };
   });
 }
 
-function filterToMonth(days: AttendanceHistoryDay[], selectedMonth: Date): AttendanceHistoryDay[] {
-  return days.filter((day) => {
-    const parsed = parseISO(day.day);
-    if (Number.isNaN(parsed.getTime())) {
-      return false;
-    }
-    return isSameMonth(parsed, selectedMonth);
-  });
+function filterToMonth(days: AttendanceHistoryDay[], selectedMonthKey: string): AttendanceHistoryDay[] {
+  return days.filter((day) => day.day.slice(0, 7) === selectedMonthKey);
 }
 
 function countAchievedWeeks(days: AttendanceHistoryDay[], weeklyGoalHours: number): number {
@@ -99,12 +84,10 @@ function countAchievedWeeks(days: AttendanceHistoryDay[], weeklyGoalHours: numbe
 
   const weeklyTotals = new Map<string, number>();
   for (const day of days) {
-    const parsed = parseISO(day.day);
-    if (Number.isNaN(parsed.getTime())) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day.day)) {
       continue;
     }
-    const start = startOfWeek(parsed, { weekStartsOn: 1 });
-    const key = monthKey(start) + `-${format(start, "dd")}`;
+    const key = singaporeWeekStartKeyFromDayKey(day.day);
     weeklyTotals.set(key, (weeklyTotals.get(key) ?? 0) + day.hours);
   }
 
@@ -113,13 +96,10 @@ function countAchievedWeeks(days: AttendanceHistoryDay[], weeklyGoalHours: numbe
 
 export function HistoryPage() {
   const { validAccessToken } = useAuth();
-  const [selectedMonth, setSelectedMonth] = useState<Date>(startOfMonth(new Date()));
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string>(singaporeMonthKey());
 
-  const currentMonth = startOfMonth(new Date());
-  const rangeStartDate = startOfMonth(subMonths(currentMonth, 5));
-  const rangeEndDate = endOfMonth(currentMonth);
-  const rangeStart = format(rangeStartDate, "yyyy-MM-dd");
-  const rangeEnd = format(rangeEndDate, "yyyy-MM-dd");
+  // attendance_daily.day uses Singapore operational dates, matching the manual sync window.
+  const { start: rangeStart, end: rangeEnd } = singaporeHistoryRangeKeys(6);
 
   const historyQuery = useQuery({
     queryKey: ["attendance-history-range", rangeStart, rangeEnd],
@@ -155,21 +135,21 @@ export function HistoryPage() {
     if (!history) {
       return [];
     }
-    return buildMonthlyPoints(history.days, rangeStartDate, rangeEndDate);
-  }, [history, rangeEndDate, rangeStartDate]);
+    return buildMonthlyPoints(history.days, rangeStart, rangeEnd);
+  }, [history, rangeEnd, rangeStart]);
 
   useEffect(() => {
     if (monthlyPoints.length === 0) {
       return;
     }
 
-    const hasSelected = monthlyPoints.some((point) => isSameMonth(point.monthDate, selectedMonth));
+    const hasSelected = monthlyPoints.some((point) => point.monthKey === selectedMonthKey);
     if (!hasSelected) {
-      setSelectedMonth(monthlyPoints[monthlyPoints.length - 1].monthDate);
+      setSelectedMonthKey(monthlyPoints[monthlyPoints.length - 1].monthKey);
     }
-  }, [monthlyPoints, selectedMonth]);
+  }, [monthlyPoints, selectedMonthKey]);
 
-  const selectedMonthDays = history ? filterToMonth(history.days, selectedMonth) : [];
+  const selectedMonthDays = history ? filterToMonth(history.days, selectedMonthKey) : [];
   const dailyGoal = dashboardQuery.data?.dailyGoalHours ?? 6;
   const weeklyGoal = dashboardQuery.data?.weeklyGoalHours ?? 22.5;
 
@@ -324,7 +304,7 @@ export function HistoryPage() {
                 {chartRows.map((row) => (
                   <Cell
                     key={row.monthKey}
-                    fill={isSameMonth(parseISO(`${row.monthKey}-01`), selectedMonth) ? "var(--tt42-magenta)" : "url(#tt42HistoryBars)"}
+                    fill={row.monthKey === selectedMonthKey ? "var(--tt42-magenta)" : "url(#tt42HistoryBars)"}
                   />
                 ))}
               </Bar>
@@ -353,12 +333,12 @@ export function HistoryPage() {
         <p className="text-xs uppercase tracking-[0.16em] text-tt42-muted">Month Selection</p>
         <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
           {monthlyPoints.map((point) => {
-            const active = isSameMonth(point.monthDate, selectedMonth);
+            const active = point.monthKey === selectedMonthKey;
             return (
               <button
                 key={point.monthKey}
                 type="button"
-                onClick={() => setSelectedMonth(point.monthDate)}
+                onClick={() => setSelectedMonthKey(point.monthKey)}
                 className={[
                   "shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium",
                   active
@@ -374,7 +354,8 @@ export function HistoryPage() {
       </article>
 
       <AttendanceMonthCalendar
-        month={selectedMonth}
+        month={singaporeCalendarMonthDate(selectedMonthKey)}
+        monthKey={selectedMonthKey}
         dailyGoalHours={dailyGoal}
         weeklyGoalHours={weeklyGoal}
         days={selectedMonthDays}
@@ -382,7 +363,7 @@ export function HistoryPage() {
 
       <article className="rounded-card border border-tt42-border bg-tt42-surface p-4 shadow-soft">
         <p className="text-xs uppercase tracking-[0.16em] text-tt42-muted">Month Summary</p>
-        <h3 className="mt-1 text-lg font-semibold text-tt42-text">{monthYearLabel(selectedMonth)}</h3>
+        <h3 className="mt-1 text-lg font-semibold text-tt42-text">{singaporeMonthLongLabel(selectedMonthKey)}</h3>
         <div className="mt-3 grid grid-cols-1 gap-2 text-sm text-tt42-muted sm:grid-cols-2">
           <p>Total hours: {hoursToReadable(selectedMonthHours)}</p>
           <p>Recorded days: {selectedMonthRecordedDays}</p>

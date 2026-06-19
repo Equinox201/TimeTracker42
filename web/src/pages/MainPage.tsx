@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { endOfMonth, format, startOfMonth } from "date-fns";
 
 import { AttendanceMonthCalendar } from "../components/main/AttendanceMonthCalendar";
 import { ConcentricProgressRings, type RingMetric } from "../components/main/ConcentricProgressRings";
@@ -14,6 +13,7 @@ import {
 } from "../lib/api/dashboardApi";
 import { useAuth } from "../lib/auth";
 import { deltaHoursReadable, hoursToReadable, progressPercent, shortDateTime } from "../lib/formatters";
+import { endOfSingaporeMonthKey, singaporeMonthKey, startOfSingaporeMonthKey } from "../lib/singaporeDate";
 
 function errorText(error: unknown): string {
   if (error instanceof Error) {
@@ -66,8 +66,10 @@ export function MainPage() {
   const { validAccessToken } = useAuth();
 
   const now = new Date();
-  const monthStart = format(startOfMonth(now), "yyyy-MM-dd");
-  const monthEnd = format(endOfMonth(now), "yyyy-MM-dd");
+  // attendance_daily.day uses Singapore operational dates, so the current month query follows Singapore time.
+  const currentMonthKey = singaporeMonthKey(now);
+  const monthStart = startOfSingaporeMonthKey(now);
+  const monthEnd = endOfSingaporeMonthKey(now);
 
   const dashboardQuery = useQuery({
     queryKey: ["dashboard-summary"],
@@ -288,6 +290,7 @@ export function MainPage() {
       {monthHistory ? (
         <AttendanceMonthCalendar
           month={new Date()}
+          monthKey={currentMonthKey}
           dailyGoalHours={summary.dailyGoalHours}
           weeklyGoalHours={summary.weeklyGoalHours}
           days={monthHistory.days}
