@@ -1,3 +1,4 @@
+import { functionsBaseUrl } from "../functionsUrl";
 import { supabase } from "../supabase";
 
 type PaceMode = "calendar_days" | "weekdays";
@@ -83,12 +84,44 @@ export type AttendanceRangeInput = {
   to: string;
 };
 
+type ManualSyncErrorResponse = {
+  error?: unknown;
+};
+
 function secondsToHours(value: number): number {
   return Number((value / 3600).toFixed(2));
 }
 
 function hoursToSeconds(value: number): number {
   return Math.max(0, Math.round(value * 3600));
+}
+
+function isManualSyncResponse(value: unknown): value is ManualSyncResponse {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<ManualSyncResponse>;
+  return (
+    typeof candidate.syncRunId === "string" &&
+    typeof candidate.status === "string" &&
+    typeof candidate.insertedDays === "number" &&
+    typeof candidate.updatedDays === "number" &&
+    typeof candidate.unchangedDays === "number" &&
+    typeof candidate.startedAt === "string" &&
+    typeof candidate.finishedAt === "string"
+  );
+}
+
+function safeSyncErrorMessage(value: unknown): string {
+  if (value && typeof value === "object") {
+    const { error } = value as ManualSyncErrorResponse;
+    if (typeof error === "string" && error.trim().length > 0) {
+      return error.trim();
+    }
+  }
+
+  return "Sync failed. Please try again.";
 }
 
 function dateKey(value: Date): string {
@@ -327,15 +360,30 @@ export async function getAttendanceHistory(
   };
 }
 
-export async function triggerManualSync(_accessToken: string): Promise<ManualSyncResponse> {
-  const now = new Date().toISOString();
-  return {
-    syncRunId: "not-implemented",
-    status: "not_implemented",
-    insertedDays: 0,
-    updatedDays: 0,
-    unchangedDays: 0,
-    startedAt: now,
-    finishedAt: now
-  };
+export async function triggerManualSync(accessToken: string): Promise<ManualSyncResponse> {
+  const response = await fetch(`${functionsBaseUrl()}/forty-two-sync-manual`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({})
+  });
+
+  let body: unknown = null;
+  try {
+    body = await response.json();
+  } catch {
+    body = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(safeSyncErrorMessage(body));
+  }
+
+  if (!isManualSyncResponse(body)) {
+    throw new Error("Sync returned an unexpected response.");
+  }
+
+  return body;
 }
