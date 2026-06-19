@@ -395,7 +395,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.forty-two-sync-manual]
-# verify_jwt is intentionally omitted so Supabase's default JWT verification applies.
+verify_jwt = true
 
 [analytics]
 enabled = true

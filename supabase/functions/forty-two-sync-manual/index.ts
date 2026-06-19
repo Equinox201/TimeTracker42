@@ -3,6 +3,7 @@ import { createClient } from "supabase";
 const FORTY_TWO_TOKEN_URL = "https://api.intra.42.fr/oauth/token";
 const FORTY_TWO_API_BASE_URL = "https://api.intra.42.fr/v2";
 const PAGE_SIZE = 100;
+const MAX_PAGES_PER_FETCH = 50;
 const TOKEN_REFRESH_SKEW_MS = 5 * 60 * 1000;
 const SINGAPORE_OFFSET_MS = 8 * 60 * 60 * 1000;
 
@@ -65,12 +66,23 @@ type DailyTotal = {
   hasLive: boolean;
 };
 
+type FortyTwoTokenState = {
+  token: FortyTwoTokenRow;
+  retriedUnauthorized: boolean;
+};
+
 class SafeSyncError extends Error {
   status: number;
 
   constructor(message: string, status = 400) {
     super(message);
     this.status = status;
+  }
+}
+
+class FortyTwoUnauthorizedError extends SafeSyncError {
+  constructor() {
+    super("42 session expired. Please sign in again.", 401);
   }
 }
 
@@ -203,8 +215,12 @@ async function loadFortyTwoToken(
 }
 
 function tokenNeedsRefresh(token: FortyTwoTokenRow): boolean {
-  if (!token.expires_at) {
+  if (!token.refresh_token) {
     return false;
+  }
+
+  if (!token.expires_at) {
+    return true;
   }
 
   const expiresAtMs = new Date(token.expires_at).getTime();
@@ -374,7 +390,11 @@ async function fetchLocationsPage(
     }
   });
 
-  if (response.status === 401 || response.status === 403) {
+  if (response.status === 401) {
+    throw new FortyTwoUnauthorizedError();
+  }
+
+  if (response.status === 403) {
     throw new SafeSyncError("42 session expired. Please sign in again.", 401);
   }
 
@@ -391,22 +411,45 @@ async function fetchLocationsPage(
 }
 
 async function fetchPaginatedLocations(
-  accessToken: string,
+  tokenState: FortyTwoTokenState,
+  supabase: SupabaseAdminClient,
+  userId: string,
+  clientId: string,
+  clientSecret: string,
   fortyTwoUserId: number,
   params: Record<string, string>
 ): Promise<FortyTwoLocation[]> {
   const locations: FortyTwoLocation[] = [];
 
-  for (let pageNumber = 1; ; pageNumber += 1) {
-    const page = await fetchLocationsPage(accessToken, fortyTwoUserId, params, pageNumber);
+  for (let pageNumber = 1; pageNumber <= MAX_PAGES_PER_FETCH; pageNumber += 1) {
+    let page: FortyTwoLocation[];
+
+    try {
+      page = await fetchLocationsPage(tokenState.token.access_token, fortyTwoUserId, params, pageNumber);
+    } catch (error) {
+      if (error instanceof FortyTwoUnauthorizedError && !tokenState.retriedUnauthorized) {
+        tokenState.token = await refreshFortyTwoToken(
+          supabase,
+          userId,
+          tokenState.token,
+          clientId,
+          clientSecret
+        );
+        tokenState.retriedUnauthorized = true;
+        page = await fetchLocationsPage(tokenState.token.access_token, fortyTwoUserId, params, pageNumber);
+      } else {
+        throw error;
+      }
+    }
+
     locations.push(...page);
 
     if (page.length < PAGE_SIZE) {
-      break;
+      return locations;
     }
   }
 
-  return locations;
+  throw new SafeSyncError("42 locations sync exceeded the safe pagination limit. Please try again later.", 502);
 }
 
 function uniqueLocations(locations: FortyTwoLocation[]): FortyTwoLocation[] {
@@ -632,16 +675,34 @@ Deno.serve(async (req) => {
     // separately below so current-day live time is included.
     const windowStart = singaporeHistoricalWindowStart(now);
     const windowStartIso = windowStart.toISOString();
-    const [rangeLocations, activeLocations] = await Promise.all([
-      fetchPaginatedLocations(token.access_token, profile.forty_two_user_id, {
+    const tokenState: FortyTwoTokenState = {
+      token,
+      retriedUnauthorized: false
+    };
+    const rangeLocations = await fetchPaginatedLocations(
+      tokenState,
+      supabase,
+      userId,
+      fortyTwoClientId,
+      fortyTwoClientSecret,
+      profile.forty_two_user_id,
+      {
         "range[begin_at]": `${windowStartIso},${nowIso}`,
         sort: "begin_at"
-      }),
-      fetchPaginatedLocations(token.access_token, profile.forty_two_user_id, {
+      }
+    );
+    const activeLocations = await fetchPaginatedLocations(
+      tokenState,
+      supabase,
+      userId,
+      fortyTwoClientId,
+      fortyTwoClientSecret,
+      profile.forty_two_user_id,
+      {
         "filter[active]": "true",
         sort: "begin_at"
-      })
-    ]);
+      }
+    );
 
     const normalizedSessions = uniqueLocations([...rangeLocations, ...activeLocations])
       .map((location) => normalizeLocation(location, userId, nowIso))
