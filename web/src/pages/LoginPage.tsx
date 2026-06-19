@@ -9,6 +9,8 @@ function fortyTwoLoginUrl(): string {
   return url.toString();
 }
 
+const enableEmailOtpFallback = import.meta.env.VITE_ENABLE_EMAIL_OTP_FALLBACK === "true";
+
 export function LoginPage() {
   const [email, setEmail] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -55,7 +57,7 @@ export function LoginPage() {
         <p className="text-xs uppercase tracking-[0.2em] text-tt42-muted">TimeTracker42</p>
         <h1 className="mt-2 text-3xl font-semibold">Welcome back</h1>
         <p className="mt-3 text-sm text-tt42-muted">
-          Sign in with your 42 account. Email OTP remains available as a temporary fallback while the migration is in progress.
+          Sign in with your 42 account to track attendance, goals, and deadlines.
         </p>
 
         <button
@@ -66,49 +68,53 @@ export function LoginPage() {
           Continue with 42
         </button>
 
-        <div className="my-6 flex items-center gap-3">
-          <div className="h-px flex-1 bg-tt42-border" />
-          <span className="text-xs uppercase tracking-[0.16em] text-tt42-muted">Temporary fallback</span>
-          <div className="h-px flex-1 bg-tt42-border" />
-        </div>
+        {enableEmailOtpFallback ? (
+          <>
+            <div className="my-6 flex items-center gap-3">
+              <div className="h-px flex-1 bg-tt42-border" />
+              <span className="text-xs uppercase tracking-[0.16em] text-tt42-muted">Development fallback</span>
+              <div className="h-px flex-1 bg-tt42-border" />
+            </div>
 
-        <form className="space-y-4" onSubmit={sendMagicLink}>
-          <label className="block text-sm">
-            <span className="mb-1 block text-tt42-muted">Email</span>
-            <input
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.com"
-              className="h-11 w-full rounded-lg border border-tt42-border bg-tt42-surface2 px-3 text-tt42-text outline-none focus:border-tt42-magenta"
-            />
-          </label>
+            <form className="space-y-4" onSubmit={sendMagicLink}>
+              <label className="block text-sm">
+                <span className="mb-1 block text-tt42-muted">Email</span>
+                <input
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="you@example.com"
+                  className="h-11 w-full rounded-lg border border-tt42-border bg-tt42-surface2 px-3 text-tt42-text outline-none focus:border-tt42-magenta"
+                />
+              </label>
 
-          <button
-            type="submit"
-            disabled={isSending}
-            className="flex h-11 w-full items-center justify-center rounded-xl bg-gradient-to-r from-tt42-magenta to-tt42-teal font-medium text-black disabled:opacity-60"
-          >
-            {isSending ? "Sending..." : "Send magic link"}
-          </button>
-        </form>
+              <button
+                type="submit"
+                disabled={isSending}
+                className="flex h-11 w-full items-center justify-center rounded-xl border border-tt42-border bg-tt42-surface2 font-medium text-tt42-text disabled:opacity-60"
+              >
+                {isSending ? "Sending..." : "Send magic link"}
+              </button>
+            </form>
 
-        {successMessage ? (
-          <p className="mt-4 rounded-xl border border-tt42-mint/40 bg-tt42-mint/15 p-3 text-sm text-tt42-text">
-            {successMessage}
-          </p>
+            {successMessage ? (
+              <p className="mt-4 rounded-xl border border-tt42-mint/40 bg-tt42-mint/15 p-3 text-sm text-tt42-text">
+                {successMessage}
+              </p>
+            ) : null}
+
+            {errorMessage ? (
+              <p className="mt-4 rounded-xl border border-tt42-danger/40 bg-tt42-danger/10 p-3 text-sm text-tt42-danger">
+                {errorMessage}
+              </p>
+            ) : null}
+
+            <p className="mt-4 text-xs text-tt42-muted">
+              Email OTP is hidden by default and intended only for development access.
+            </p>
+          </>
         ) : null}
-
-        {errorMessage ? (
-          <p className="mt-4 rounded-xl border border-tt42-danger/40 bg-tt42-danger/10 p-3 text-sm text-tt42-danger">
-            {errorMessage}
-          </p>
-        ) : null}
-
-        <p className="mt-4 text-xs text-tt42-muted">
-          Email OTP is kept for development access. 42 sync is not enabled yet.
-        </p>
       </div>
     </div>
   );
