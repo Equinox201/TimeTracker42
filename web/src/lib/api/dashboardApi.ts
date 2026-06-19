@@ -1,4 +1,14 @@
 import { functionsBaseUrl } from "../functionsUrl";
+import {
+  addSingaporeDaysKey,
+  countRemainingSingaporeDays,
+  countSingaporeDaysInclusive,
+  singaporeDayKey,
+  startOfSingaporeMonthKey,
+  startOfSingaporeWeekKey,
+  endOfSingaporeMonthKey,
+  addSingaporeMonthsKey
+} from "../singaporeDate";
 import { supabase } from "../supabase";
 
 type PaceMode = "calendar_days" | "weekdays";
@@ -130,58 +140,6 @@ function safeSyncErrorMessage(value: unknown): string {
   }
 
   return "Sync failed. Please try again.";
-}
-
-function dateKey(value: Date): string {
-  return value.toISOString().slice(0, 10);
-}
-
-function utcDate(value: string): Date {
-  return new Date(`${value}T00:00:00.000Z`);
-}
-
-function addDays(value: Date, days: number): Date {
-  const next = new Date(value);
-  next.setUTCDate(next.getUTCDate() + days);
-  return next;
-}
-
-function startOfUtcMonth(value: Date): Date {
-  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), 1));
-}
-
-function endOfUtcMonth(value: Date): Date {
-  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth() + 1, 0));
-}
-
-function startOfUtcWeek(value: Date): Date {
-  const day = value.getUTCDay();
-  const mondayOffset = day === 0 ? -6 : 1 - day;
-  return addDays(new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate())), mondayOffset);
-}
-
-function isWeekday(value: Date): boolean {
-  const day = value.getUTCDay();
-  return day !== 0 && day !== 6;
-}
-
-function countDaysInclusive(from: string, to: string): number {
-  const start = utcDate(from);
-  const end = utcDate(to);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
-    return 0;
-  }
-  return Math.floor((end.getTime() - start.getTime()) / 86_400_000) + 1;
-}
-
-function countRemainingDays(from: Date, monthEnd: Date, weekdaysOnly: boolean): number {
-  let count = 0;
-  for (let cursor = from; cursor <= monthEnd; cursor = addDays(cursor, 1)) {
-    if (!weekdaysOnly || isWeekday(cursor)) {
-      count += 1;
-    }
-  }
-  return Math.max(count, 1);
 }
 
 function sumSeconds(rows: AttendanceDailyRow[], from: string, to: string): number {
@@ -337,16 +295,16 @@ export async function getDashboardSummary(_accessToken: string): Promise<Dashboa
   const userId = await authenticatedUserId();
   const goals = await getOrCreateGoals(userId);
   const today = new Date();
-  const todayKey = dateKey(today);
-  const monthStart = dateKey(startOfUtcMonth(today));
-  const monthEndDate = endOfUtcMonth(today);
-  const monthEnd = dateKey(monthEndDate);
-  const weekStart = dateKey(startOfUtcWeek(today));
-  const previousWeekStart = dateKey(addDays(utcDate(weekStart), -7));
-  const previousWeekEnd = dateKey(addDays(utcDate(weekStart), -1));
-  const previousMonthStartDate = startOfUtcMonth(addDays(startOfUtcMonth(today), -1));
-  const previousMonthStart = dateKey(previousMonthStartDate);
-  const previousMonthEnd = dateKey(endOfUtcMonth(previousMonthStartDate));
+  // attendance_daily.day is keyed by Asia/Singapore, so dashboard windows must use Singapore day keys.
+  const todayKey = singaporeDayKey(today);
+  const monthStart = startOfSingaporeMonthKey(today);
+  const monthEnd = endOfSingaporeMonthKey(today);
+  const weekStart = startOfSingaporeWeekKey(today);
+  const previousWeekStart = addSingaporeDaysKey(weekStart, -7);
+  const previousWeekEnd = addSingaporeDaysKey(weekStart, -1);
+  const previousMonthKey = addSingaporeMonthsKey(monthStart.slice(0, 7), -1);
+  const previousMonthStart = `${previousMonthKey}-01`;
+  const previousMonthEnd = addSingaporeDaysKey(monthStart, -1);
 
   const [attendanceRows, syncRun, successfulSyncRun] = await Promise.all([
     listAttendance(userId, previousMonthStart, monthEnd),
@@ -362,8 +320,8 @@ export async function getDashboardSummary(_accessToken: string): Promise<Dashboa
   const hoursMonth = secondsToHours(monthSeconds);
   const monthlyGoalHours = secondsToHours(goals.monthly_seconds);
   const hoursLeftToMonthlyGoal = Math.max(monthlyGoalHours - hoursMonth, 0);
-  const remainingCalendarDays = countRemainingDays(utcDate(todayKey), monthEndDate, false);
-  const remainingWeekdays = countRemainingDays(utcDate(todayKey), monthEndDate, true);
+  const remainingCalendarDays = countRemainingSingaporeDays(todayKey, monthEnd, false);
+  const remainingWeekdays = countRemainingSingaporeDays(todayKey, monthEnd, true);
 
   return {
     hoursToday: secondsToHours(todaySeconds),
@@ -400,7 +358,7 @@ export async function getAttendanceHistory(
   return {
     fromDate: range.from,
     toDate: range.to,
-    totalDays: countDaysInclusive(range.from, range.to),
+    totalDays: countSingaporeDaysInclusive(range.from, range.to),
     totalHours: secondsToHours(totalSeconds),
     days,
     ...syncMetadata(syncRun, successfulSyncRun)
