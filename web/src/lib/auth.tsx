@@ -31,6 +31,30 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+type AuthExchangeResponse = {
+  token_hash?: unknown;
+  type?: unknown;
+};
+
+function functionsBaseUrl(): string {
+  const explicitUrl = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL;
+  if (typeof explicitUrl === "string" && explicitUrl.trim().length > 0) {
+    return explicitUrl.replace(/\/+$/, "");
+  }
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  if (typeof supabaseUrl === "string" && supabaseUrl.trim().length > 0) {
+    const url = new URL(supabaseUrl);
+    url.hostname = url.hostname.replace(".supabase.co", ".functions.supabase.co");
+    url.pathname = "";
+    url.search = "";
+    url.hash = "";
+    return url.toString().replace(/\/+$/, "");
+  }
+
+  throw new Error("Missing Supabase Functions URL.");
+}
+
 function stringMetadata(user: SupabaseUser, keys: string[]): string | null {
   for (const key of keys) {
     const value = user.user_metadata[key];
@@ -90,6 +114,27 @@ function callbackParams(callbackUrl: string): { search: URLSearchParams; hash: U
   };
 }
 
+async function exchangeCodeForTokenHash(exchangeCode: string): Promise<string> {
+  const response = await fetch(`${functionsBaseUrl()}/auth-exchange`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ exchange_code: exchangeCode })
+  });
+
+  if (!response.ok) {
+    throw new Error("Could not complete 42 sign-in. Please try again.");
+  }
+
+  const body = (await response.json()) as AuthExchangeResponse;
+  if (typeof body.token_hash !== "string" || body.type !== "email") {
+    throw new Error("Could not complete 42 sign-in. Please try again.");
+  }
+
+  return body.token_hash;
+}
+
 export function AuthProvider({ children }: PropsWithChildren) {
   const [status, setStatus] = useState<AuthStatus>("booting");
   const [session, setSession] = useState<SessionPayload | null>(null);
@@ -134,6 +179,21 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const callbackError = search.get("error_description") ?? hash.get("error_description") ?? search.get("error") ?? hash.get("error");
     if (callbackError) {
       throw new Error(callbackError);
+    }
+
+    const exchangeCode = search.get("exchange_code") ?? hash.get("exchange_code");
+    if (exchangeCode) {
+      const tokenHash = await exchangeCodeForTokenHash(exchangeCode);
+      const { data, error } = await supabase.auth.verifyOtp({
+        token_hash: tokenHash,
+        type: "email"
+      });
+      if (error) {
+        setSession(null);
+        throw error;
+      }
+      setSession(adaptSession(data.session));
+      return;
     }
 
     const accessToken = hash.get("access_token");
