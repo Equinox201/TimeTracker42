@@ -1,6 +1,13 @@
 import { FormEvent, useState } from "react";
 
+import { functionsBaseUrl } from "../lib/functionsUrl";
 import { supabase } from "../lib/supabase";
+
+function fortyTwoLoginUrl(): string {
+  const url = new URL(`${functionsBaseUrl()}/forty-two-oauth-start`);
+  url.searchParams.set("redirect_to", `${window.location.origin}/auth/callback`);
+  return url.toString();
+}
 
 export function LoginPage() {
   const [email, setEmail] = useState("");
@@ -38,16 +45,34 @@ export function LoginPage() {
     setSuccessMessage(`Magic link sent to ${nextEmail}.`);
   };
 
+  const continueWithFortyTwo = () => {
+    window.location.assign(fortyTwoLoginUrl());
+  };
+
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-[520px] items-center px-4 py-10">
       <div className="w-full rounded-card border border-tt42-border bg-tt42-surface p-6 shadow-soft">
         <p className="text-xs uppercase tracking-[0.2em] text-tt42-muted">TimeTracker42</p>
         <h1 className="mt-2 text-3xl font-semibold">Welcome back</h1>
         <p className="mt-3 text-sm text-tt42-muted">
-          Use temporary email login to test Supabase Auth, RLS, and direct data access before 42 OAuth is connected.
+          Sign in with your 42 account. Email OTP remains available as a temporary fallback while the migration is in progress.
         </p>
 
-        <form className="mt-6 space-y-4" onSubmit={sendMagicLink}>
+        <button
+          type="button"
+          onClick={continueWithFortyTwo}
+          className="mt-6 flex h-12 w-full items-center justify-center rounded-xl bg-gradient-to-r from-tt42-magenta to-tt42-teal font-semibold text-black shadow-soft"
+        >
+          Continue with 42
+        </button>
+
+        <div className="my-6 flex items-center gap-3">
+          <div className="h-px flex-1 bg-tt42-border" />
+          <span className="text-xs uppercase tracking-[0.16em] text-tt42-muted">Temporary fallback</span>
+          <div className="h-px flex-1 bg-tt42-border" />
+        </div>
+
+        <form className="space-y-4" onSubmit={sendMagicLink}>
           <label className="block text-sm">
             <span className="mb-1 block text-tt42-muted">Email</span>
             <input
@@ -82,7 +107,7 @@ export function LoginPage() {
         ) : null}
 
         <p className="mt-4 text-xs text-tt42-muted">
-          42 OAuth is still pending. This temporary flow does not connect or sync 42 attendance data.
+          Email OTP is kept for development access. 42 sync is not enabled yet.
         </p>
       </div>
     </div>
