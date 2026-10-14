@@ -18,6 +18,7 @@ TimeTracker42 is a mobile-first attendance tracker for 42 students. It signs use
 - Daily, weekly, and monthly attendance progress.
 - Six-month attendance history and monthly calendar views.
 - User-owned goals and deadlines stored in Supabase Postgres.
+- Attendance planner: pick the weekdays you can attend, days off and a daily limit, and see whether the monthly goal is reachable, with concrete ways to fix it when it is not.
 - Stale/failed/last-sync status from `sync_runs`.
 - Mobile-first web UI suitable for iPhone Safari and PWA-style use.
 
@@ -215,6 +216,10 @@ Do not commit actual secret values.
   URL, because React effects can re-run and a consumed code is (correctly) rejected.
 - **RLS instead of an API server.** The web app reads and writes its own rows straight from Supabase
   under row-level security; Edge Functions exist only where a secret or the 42 API is involved.
+- **Planning is separate from goals.** The goal is the target; the planner is the schedule used to reach
+  it. A recommendation never rewrites the goal, and deadline progress is measured from each deadline's own
+  start date rather than "this month so far". The planner (`web/src/lib/planner.ts`) is a pure function of
+  target, attendance and constraints, so it is fully unit-tested.
 - **Singapore operational days.** `attendance_daily.day` is keyed by `Asia/Singapore`, and the sync
   function and UI share that rule (`web/src/lib/singaporeDate.ts`), so day, week and month totals agree.
 - **Safe failures.** Sync errors store short messages only; detailed reasons go to structured logs

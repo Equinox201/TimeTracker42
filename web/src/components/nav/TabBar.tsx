@@ -9,13 +9,14 @@ type Tab = {
 const tabs: Tab[] = [
   { to: "/app/main", label: "Main", icon: "◉" },
   { to: "/app/history", label: "History", icon: "▥" },
+  { to: "/app/plan", label: "Plan", icon: "◇" },
   { to: "/app/settings", label: "Settings", icon: "⚙" }
 ];
 
 export function TabBar() {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-tt42-border bg-tt42-surface/95 px-3 pb-[calc(8px+env(safe-area-inset-bottom))] pt-2 backdrop-blur md:left-1/2 md:w-[520px] md:-translate-x-1/2 md:rounded-t-card md:border md:border-b-0">
-      <ul className="grid grid-cols-3 gap-2">
+      <ul className="grid grid-cols-4 gap-2">
         {tabs.map((tab) => (
           <li key={tab.to}>
             <NavLink
