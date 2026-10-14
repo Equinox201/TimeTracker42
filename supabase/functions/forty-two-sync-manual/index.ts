@@ -1,5 +1,16 @@
 import { createClient, type SupabaseClient } from "supabase";
 
+import {
+  computeDailyTotals,
+  daysToZero,
+  dateKeyInSingapore,
+  normalizeLocation,
+  singaporeHistoricalWindowStart,
+  uniqueLocations,
+  type FortyTwoLocation,
+  type NormalizedLocationSession
+} from "../_shared/attendance.ts";
+import { fetchWithRetry } from "../_shared/http.ts";
 import { createLogger, errorMessage } from "../_shared/log.ts";
 
 const FORTY_TWO_TOKEN_URL = "https://api.intra.42.fr/oauth/token";
@@ -7,7 +18,12 @@ const FORTY_TWO_API_BASE_URL = "https://api.intra.42.fr/v2";
 const PAGE_SIZE = 100;
 const MAX_PAGES_PER_FETCH = 50;
 const TOKEN_REFRESH_SKEW_MS = 5 * 60 * 1000;
-const SINGAPORE_OFFSET_MS = 8 * 60 * 60 * 1000;
+// Sessions that began shortly before the window can still overlap its first day.
+const WINDOW_LOOKBACK_MS = 24 * 60 * 60 * 1000;
+// A run still "running" after this long is considered abandoned (the function has a hard limit).
+const STALE_RUN_MS = 10 * 60 * 1000;
+const SYNC_COOLDOWN_MS = 15 * 1000;
+const UPSTREAM_TIMEOUT_MS = 10_000;
 
 const corsMethods = "POST, OPTIONS";
 const corsHeadersList = "authorization, x-client-info, apikey, content-type";
@@ -37,35 +53,9 @@ type FortyTwoTokenResponse = {
   scope?: string;
 };
 
-type FortyTwoLocation = {
-  id?: number;
-  begin_at?: string | null;
-  end_at?: string | null;
-  host?: string | null;
-  campus_id?: number | null;
-  primary?: boolean | null;
-};
-
-type NormalizedLocationSession = {
-  id: number;
-  user_id: string;
-  begin_at: string;
-  end_at: string | null;
-  host: string | null;
-  campus_id: number | null;
-  primary_location: boolean | null;
-  synced_at: string;
-};
-
 type ExistingAttendanceRow = {
   day: string;
   seconds: number;
-  source: string;
-};
-
-type DailyTotal = {
-  seconds: number;
-  hasLive: boolean;
 };
 
 type FortyTwoTokenState = {
@@ -140,27 +130,6 @@ function safeErrorMessage(error: unknown): string {
     return error.message;
   }
   return "Manual sync failed.";
-}
-
-function dateKeyInSingapore(value: Date): string {
-  return new Date(value.getTime() + SINGAPORE_OFFSET_MS).toISOString().slice(0, 10);
-}
-
-function singaporeHistoricalWindowStart(value: Date): Date {
-  const local = new Date(value.getTime() + SINGAPORE_OFFSET_MS);
-  const year = local.getUTCFullYear();
-  const monthIndex = local.getUTCMonth();
-  const windowStart = new Date(Date.UTC(year, monthIndex - 5, 1));
-  const month = String(windowStart.getUTCMonth() + 1).padStart(2, "0");
-  return new Date(`${windowStart.getUTCFullYear()}-${month}-01T00:00:00+08:00`);
-}
-
-function singaporeDayStartMs(day: string): number {
-  return Date.parse(`${day}T00:00:00+08:00`);
-}
-
-function nextSingaporeDayStartMs(day: string): number {
-  return singaporeDayStartMs(day) + 86_400_000;
 }
 
 async function authenticatedUserId(
@@ -244,18 +213,28 @@ async function refreshFortyTwoToken(
     throw new SafeSyncError("42 session expired. Please sign in again.", 401);
   }
 
-  const response = await fetch(FORTY_TWO_TOKEN_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded"
-    },
-    body: new URLSearchParams({
-      grant_type: "refresh_token",
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: token.refresh_token
-    })
-  });
+  let response: Response;
+  try {
+    // No retries: a refresh token may be rotated by the first attempt.
+    response = await fetchWithRetry(
+      FORTY_TWO_TOKEN_URL,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          client_id: clientId,
+          client_secret: clientSecret,
+          refresh_token: token.refresh_token
+        })
+      },
+      { retries: 0, timeoutMs: UPSTREAM_TIMEOUT_MS }
+    );
+  } catch {
+    throw new SafeSyncError("Could not reach 42. Please try again.", 504);
+  }
 
   if (!response.ok) {
     const detail = (await response.text()).slice(0, 300);
@@ -300,80 +279,107 @@ async function refreshFortyTwoToken(
   return nextToken;
 }
 
-async function createSyncRun(
+async function closeRun(
+  supabase: SupabaseAdminClient,
+  syncRunId: string,
+  errorMessageText: string,
+  log: ReturnType<typeof createLogger>
+): Promise<void> {
+  const { error } = await supabase
+    .from("sync_runs")
+    .update({
+      status: "failed",
+      finished_at: new Date().toISOString(),
+      error: errorMessageText
+    })
+    .eq("id", syncRunId);
+
+  if (error) {
+    // Do not mask the original failure; the stale-run recovery will close it later.
+    log.error("sync_run_close_failed", { sync_run_id: syncRunId, reason: errorMessage(error) });
+  }
+}
+
+// Takes the per-user sync lock by inserting a 'running' run (a partial unique index allows
+// one per user). Recovers abandoned runs first and enforces a short cooldown.
+async function acquireSyncRun(
   supabase: SupabaseAdminClient,
   userId: string,
-  startedAt: string
-): Promise<string> {
+  log: ReturnType<typeof createLogger>
+): Promise<{ syncRunId: string; startedAt: string }> {
+  const now = Date.now();
+  const nowIso = new Date(now).toISOString();
+
+  const { data: recovered, error: recoverError } = await supabase
+    .from("sync_runs")
+    .update({ status: "failed", finished_at: nowIso, error: "Sync did not finish." })
+    .eq("user_id", userId)
+    .eq("status", "running")
+    .lt("started_at", new Date(now - STALE_RUN_MS).toISOString())
+    .select("id");
+
+  if (recoverError) {
+    throw new SafeSyncError("Could not start sync.", 500);
+  }
+  if (recovered && recovered.length > 0) {
+    log.warn("abandoned_runs_recovered", { user_id: userId, count: recovered.length });
+  }
+
+  const { data: lastSuccess, error: lastError } = await supabase
+    .from("sync_runs")
+    .select("finished_at")
+    .eq("user_id", userId)
+    .eq("status", "success")
+    .order("finished_at", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle<{ finished_at: string | null }>();
+
+  if (lastError) {
+    throw new SafeSyncError("Could not start sync.", 500);
+  }
+  if (lastSuccess?.finished_at && now - new Date(lastSuccess.finished_at).getTime() < SYNC_COOLDOWN_MS) {
+    log.info("sync_cooldown", { user_id: userId });
+    throw new SafeSyncError("Synced a moment ago. Please wait a few seconds and try again.", 429);
+  }
+
   const { data, error } = await supabase
     .from("sync_runs")
-    .insert({
-      user_id: userId,
-      status: "running",
-      started_at: startedAt
-    })
+    .insert({ user_id: userId, status: "running", started_at: nowIso })
     .select("id")
     .single<{ id: string }>();
 
-  if (error || !data?.id) {
+  if (error) {
+    if (error.code === "23505") {
+      log.info("sync_already_running", { user_id: userId });
+      throw new SafeSyncError("A sync is already running. Please wait for it to finish.", 409);
+    }
     throw new SafeSyncError("Could not create sync run.", 500);
   }
 
-  return data.id;
+  return { syncRunId: data.id, startedAt: nowIso };
 }
 
-async function updateSyncRun(
+// Existing local totals in the window, used to zero days the source no longer reports.
+async function loadExistingAttendance(
   supabase: SupabaseAdminClient,
-  syncRunId: string,
-  status: "success" | "failed",
-  finishedAt: string,
-  errorMessage?: string
-): Promise<void> {
-  await supabase
-    .from("sync_runs")
-    .update({
-      status,
-      finished_at: finishedAt,
-      error: errorMessage ?? null
-    })
-    .eq("id", syncRunId);
-}
-
-function normalizeLocation(
-  location: FortyTwoLocation,
   userId: string,
-  syncedAt: string
-): NormalizedLocationSession | null {
-  if (typeof location.id !== "number" || !Number.isSafeInteger(location.id)) {
-    return null;
+  fromDay: string,
+  toDay: string
+): Promise<ExistingAttendanceRow[]> {
+  const { data, error } = await supabase
+    .from("attendance_daily")
+    .select("day,seconds")
+    .eq("user_id", userId)
+    .gte("day", fromDay)
+    .lte("day", toDay)
+    .gt("seconds", 0)
+    .returns<ExistingAttendanceRow[]>();
+
+  if (error) {
+    throw new SafeSyncError("Could not load attendance.", 500);
   }
 
-  if (!location.begin_at) {
-    return null;
-  }
-
-  const beginMs = new Date(location.begin_at).getTime();
-  if (!Number.isFinite(beginMs)) {
-    return null;
-  }
-
-  if (location.end_at) {
-    const endMs = new Date(location.end_at).getTime();
-    if (!Number.isFinite(endMs)) {
-      return null;
-    }
-  }
-
-  return {
-    id: location.id,
-    user_id: userId,
-    begin_at: location.begin_at,
-    end_at: location.end_at ?? null,
-    host: location.host ?? null,
-    campus_id: typeof location.campus_id === "number" ? location.campus_id : null,
-    primary_location: typeof location.primary === "boolean" ? location.primary : null,
-    synced_at: syncedAt
-  };
+  return data;
 }
 
 async function fetchLocationsPage(
@@ -392,11 +398,16 @@ async function fetchLocationsPage(
   url.searchParams.set("page[size]", String(PAGE_SIZE));
   url.searchParams.set("page[number]", String(pageNumber));
 
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`
-    }
-  });
+  let response: Response;
+  try {
+    response = await fetchWithRetry(
+      url,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+      { retries: 2, timeoutMs: UPSTREAM_TIMEOUT_MS }
+    );
+  } catch {
+    throw new SafeSyncError("42 did not respond in time. Please try again.", 504);
+  }
 
   if (response.status === 401) {
     throw new FortyTwoUnauthorizedError();
@@ -458,148 +469,6 @@ async function fetchPaginatedLocations(
   }
 
   throw new SafeSyncError("42 locations sync exceeded the safe pagination limit. Please try again later.", 502);
-}
-
-function uniqueLocations(locations: FortyTwoLocation[]): FortyTwoLocation[] {
-  const byId = new Map<number, FortyTwoLocation>();
-
-  for (const location of locations) {
-    if (typeof location.id === "number") {
-      byId.set(location.id, location);
-    }
-  }
-
-  return Array.from(byId.values());
-}
-
-function computeDailyTotals(
-  sessions: NormalizedLocationSession[],
-  windowStart: Date,
-  now: Date
-): Map<string, DailyTotal> {
-  const totals = new Map<string, DailyTotal>();
-  const windowStartMs = windowStart.getTime();
-  const nowMs = now.getTime();
-
-  for (const session of sessions) {
-    const beginMs = new Date(session.begin_at).getTime();
-    const rawEndMs = session.end_at ? new Date(session.end_at).getTime() : nowMs;
-    const startMs = Math.max(beginMs, windowStartMs);
-    const endMs = Math.min(rawEndMs, nowMs);
-
-    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
-      continue;
-    }
-
-    let cursorMs = startMs;
-    while (cursorMs < endMs) {
-      const day = dateKeyInSingapore(new Date(cursorMs));
-      const segmentEndMs = Math.min(endMs, nextSingaporeDayStartMs(day));
-      const seconds = Math.max(0, Math.floor((segmentEndMs - cursorMs) / 1000));
-
-      if (seconds > 0) {
-        const total = totals.get(day) ?? { seconds: 0, hasLive: false };
-        total.seconds += seconds;
-        total.hasLive = total.hasLive || session.end_at === null;
-        totals.set(day, total);
-      }
-
-      cursorMs = segmentEndMs;
-    }
-  }
-
-  return totals;
-}
-
-async function loadExistingAttendance(
-  supabase: SupabaseAdminClient,
-  userId: string,
-  days: string[]
-): Promise<Map<string, ExistingAttendanceRow>> {
-  if (days.length === 0) {
-    return new Map();
-  }
-
-  const { data, error } = await supabase
-    .from("attendance_daily")
-    .select("day,seconds,source")
-    .eq("user_id", userId)
-    .in("day", days)
-    .returns<ExistingAttendanceRow[]>();
-
-  if (error) {
-    throw new SafeSyncError("Could not load attendance.", 500);
-  }
-
-  return new Map(data.map((row) => [row.day, row]));
-}
-
-async function upsertLocationSessions(
-  supabase: SupabaseAdminClient,
-  sessions: NormalizedLocationSession[]
-): Promise<void> {
-  if (sessions.length === 0) {
-    return;
-  }
-
-  const { error } = await supabase
-    .from("location_sessions")
-    .upsert(sessions, { onConflict: "id" });
-
-  if (error) {
-    throw new SafeSyncError("Could not save location sessions.", 500);
-  }
-}
-
-async function upsertAttendanceDaily(
-  supabase: SupabaseAdminClient,
-  userId: string,
-  totals: Map<string, DailyTotal>,
-  syncedAt: string
-): Promise<{ insertedDays: number; updatedDays: number; unchangedDays: number }> {
-  const days = Array.from(totals.keys()).sort();
-  const existing = await loadExistingAttendance(supabase, userId, days);
-
-  let insertedDays = 0;
-  let updatedDays = 0;
-  let unchangedDays = 0;
-
-  const rows = days.map((day) => {
-    const total = totals.get(day);
-    if (!total) {
-      throw new SafeSyncError("Could not compute attendance.", 500);
-    }
-
-    const source = total.hasLive ? "locations_live" : "locations";
-    const current = existing.get(day);
-    if (!current) {
-      insertedDays += 1;
-    } else if (current.seconds !== total.seconds || current.source !== source) {
-      updatedDays += 1;
-    } else {
-      unchangedDays += 1;
-    }
-
-    return {
-      user_id: userId,
-      day,
-      seconds: total.seconds,
-      source,
-      synced_at: syncedAt
-    };
-  });
-
-  if (rows.length > 0) {
-    const { error } = await supabase
-      .from("attendance_daily")
-      .upsert(rows, { onConflict: "user_id,day" });
-
-    if (error) {
-      throw new SafeSyncError("Could not save attendance.", 500);
-    }
-  }
-
-  return { insertedDays, updatedDays, unchangedDays };
 }
 
 Deno.serve(async (req) => {
@@ -665,8 +534,13 @@ Deno.serve(async (req) => {
     const userId = await authenticatedUserId(supabase, accessToken);
     loggedUserId = userId;
     const profile = await loadProfile(supabase, userId);
-    let token = await loadFortyTwoToken(supabase, userId);
 
+    // Take the per-user lock before doing any upstream work.
+    const run = await acquireSyncRun(supabase, userId, log);
+    syncRunId = run.syncRunId;
+    const startedAt = run.startedAt;
+
+    let token = await loadFortyTwoToken(supabase, userId);
     if (tokenNeedsRefresh(token)) {
       token = await refreshFortyTwoToken(
         supabase,
@@ -677,17 +551,16 @@ Deno.serve(async (req) => {
       );
     }
 
-    const startedAt = new Date().toISOString();
-    syncRunId = await createSyncRun(supabase, userId, startedAt);
-
     const now = new Date();
     const nowIso = now.toISOString();
     // Keep manual sync bounded while still making the six-month History view
-    // useful: fetch from the first day of the month five months before the
-    // current Singapore month through now. Active sessions are fetched
-    // separately below so current-day live time is included.
+    // useful: from the first day of the month five months before the current
+    // Singapore month through now. Sessions are requested from a day earlier
+    // so one that began before the window but overlaps its first day is not
+    // missed (it is clipped to the window when totals are computed). Active
+    // sessions are fetched separately so current-day live time is included.
     const windowStart = singaporeHistoricalWindowStart(now);
-    const windowStartIso = windowStart.toISOString();
+    const fetchFromIso = new Date(windowStart.getTime() - WINDOW_LOOKBACK_MS).toISOString();
     const tokenState: FortyTwoTokenState = {
       token,
       retriedUnauthorized: false
@@ -700,7 +573,7 @@ Deno.serve(async (req) => {
       fortyTwoClientSecret,
       profile.forty_two_user_id,
       {
-        "range[begin_at]": `${windowStartIso},${nowIso}`,
+        "range[begin_at]": `${fetchFromIso},${nowIso}`,
         sort: "begin_at"
       }
     );
@@ -721,19 +594,54 @@ Deno.serve(async (req) => {
       .map((location) => normalizeLocation(location, userId, nowIso))
       .filter((session): session is NormalizedLocationSession => session !== null);
 
-    await upsertLocationSessions(supabase, normalizedSessions);
-
     const totals = computeDailyTotals(normalizedSessions, windowStart, now);
-    const counts = await upsertAttendanceDaily(supabase, userId, totals, nowIso);
+
+    // Every fetch above completed (a failed or truncated one throws), so a stored day with
+    // no sessions was removed upstream. An entirely empty result is treated as suspicious
+    // and never wipes history.
+    const windowStartDay = dateKeyInSingapore(windowStart);
+    const todayDay = dateKeyInSingapore(now);
+    const existing = await loadExistingAttendance(supabase, userId, windowStartDay, todayDay);
+    const zeroedDays = normalizedSessions.length === 0 ? [] : daysToZero(existing, totals, windowStartDay, todayDay);
+    if (normalizedSessions.length === 0 && existing.length > 0) {
+      log.warn("empty_result_skipped_reconcile", { user_id: userId, stored_days: existing.length });
+    }
+
+    const days = [
+      ...Array.from(totals.entries()).map(([day, total]) => ({
+        day,
+        seconds: total.seconds,
+        source: total.hasLive ? "locations_live" : "locations"
+      })),
+      ...zeroedDays.map((day) => ({ day, seconds: 0, source: "locations" }))
+    ].sort((a, b) => a.day.localeCompare(b.day));
+
     const finishedAt = new Date().toISOString();
 
-    await updateSyncRun(supabase, syncRunId, "success", finishedAt);
+    // One transaction: sessions, daily totals and the run status land together or not at all.
+    const { data: counts, error: finalizeError } = await supabase
+      .rpc("finalize_sync", {
+        p_user_id: userId,
+        p_run_id: syncRunId,
+        p_sessions: normalizedSessions.map(({ user_id: _userId, synced_at: _syncedAt, ...session }) => session),
+        p_days: days,
+        p_synced_at: nowIso,
+        p_finished_at: finishedAt
+      })
+      .single<{ inserted_days: number; updated_days: number; unchanged_days: number }>();
+
+    if (finalizeError || !counts) {
+      log.error("finalize_failed", { user_id: userId, sync_run_id: syncRunId, reason: errorMessage(finalizeError) });
+      throw new SafeSyncError("Could not save attendance.", 500);
+    }
+
     log.info("sync_completed", {
       user_id: userId,
       sync_run_id: syncRunId,
       sessions: normalizedSessions.length,
-      inserted_days: counts.insertedDays,
-      updated_days: counts.updatedDays,
+      inserted_days: counts.inserted_days,
+      updated_days: counts.updated_days,
+      zeroed_days: zeroedDays.length,
       duration_ms: Date.now() - requestStartedAt
     });
 
@@ -742,9 +650,9 @@ Deno.serve(async (req) => {
       {
         syncRunId,
         status: "success",
-        insertedDays: counts.insertedDays,
-        updatedDays: counts.updatedDays,
-        unchangedDays: counts.unchangedDays,
+        insertedDays: counts.inserted_days,
+        updatedDays: counts.updated_days,
+        unchangedDays: counts.unchanged_days,
         startedAt,
         finishedAt
       },
@@ -761,7 +669,7 @@ Deno.serve(async (req) => {
       duration_ms: Date.now() - requestStartedAt
     });
     if (syncRunId) {
-      await updateSyncRun(supabase, syncRunId, "failed", new Date().toISOString(), message);
+      await closeRun(supabase, syncRunId, message, log);
     }
 
     return jsonResponse(allowedOrigin, { error: message }, status);

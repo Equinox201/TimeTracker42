@@ -93,7 +93,12 @@ GET https://api.intra.42.fr/v2/users/:id/locations
 ```
 
 - Manual sync currently fetches a bounded recent-history window: from the first day of the month five months before the current month through now, plus active sessions.
-- It writes normalized sessions to `location_sessions`, recomputes touched daily totals in `attendance_daily`, and records status in `sync_runs`.
+- Presence is elapsed time: overlapping or touching sessions are merged before totals are split at Singapore midnight, and sessions that began just before the window are included so its first day is accurate.
+- Days stored locally that 42 no longer reports (after a complete fetch) are reconciled to zero; an entirely empty result never wipes history.
+- One sync runs per user at a time (a unique index on running runs), with a short cooldown after a success; runs abandoned by a crash are recovered automatically.
+- Calls to 42 have a timeout and bounded retries on 429/502/503/504, honouring `Retry-After`.
+- Results are written by a single database function (`finalize_sync`), so sessions, daily totals and the run status land in one transaction.
+- Today's row is marked `locations_live` while a session is open, and the dashboard shows it as provisional with the time of the last sync.
 
 ## Repository Structure
 
