@@ -1,3 +1,12 @@
+import {
+  createDemoDeadline,
+  deleteDemoDeadline,
+  demoDeadlineRows,
+  demoGoalRow,
+  setDemoGoal,
+  updateDemoDeadline
+} from "../../demo/demoStore";
+import { isDemoMode } from "../../demo/demoMode";
 import { supabase } from "../supabase";
 import { deriveGoalDraft } from "../goalMath";
 
@@ -141,6 +150,10 @@ async function createDefaultGoals(userId: string): Promise<GoalSettings> {
 }
 
 export async function getCurrentGoals(_accessToken: string): Promise<GoalSettings> {
+  if (isDemoMode()) {
+    return normalizeGoal(demoGoalRow());
+  }
+
   const userId = await authenticatedUserId();
   const { data, error } = await supabase
     .from("goals")
@@ -163,7 +176,8 @@ export async function updateCurrentGoals(
   _accessToken: string,
   payload: GoalUpsertInput
 ): Promise<GoalSettings> {
-  const userId = await authenticatedUserId();
+  const demo = isDemoMode();
+  const userId = demo ? "demo-user" : await authenticatedUserId();
   const effectiveFrom = new Date(`${payload.effectiveFrom}T00:00:00`);
   const draft = deriveGoalDraft({
     inputMode: payload.inputMode,
@@ -172,6 +186,18 @@ export async function updateCurrentGoals(
     daysPerWeek: payload.daysPerWeek,
     effectiveFrom: Number.isNaN(effectiveFrom.getTime()) ? new Date() : effectiveFrom
   });
+
+  if (demo) {
+    return normalizeGoal(
+      setDemoGoal({
+        daily_seconds: hoursToSeconds(draft.dailyGoalHours),
+        weekly_seconds: hoursToSeconds(draft.weeklyGoalHours),
+        monthly_seconds: hoursToSeconds(draft.monthlyGoalHours),
+        pace_mode: draft.paceMode,
+        days_per_week: draft.daysPerWeek
+      })
+    );
+  }
 
   const { data, error } = await supabase
     .from("goals")
@@ -202,6 +228,10 @@ export async function upsertCurrentGoals(
 }
 
 export async function getDeadlines(_accessToken: string): Promise<Deadline[]> {
+  if (isDemoMode()) {
+    return demoDeadlineRows().map(normalizeDeadline);
+  }
+
   const userId = await authenticatedUserId();
   const { data, error } = await supabase
     .from("deadlines")
@@ -225,6 +255,17 @@ export async function createDeadline(
   _accessToken: string,
   payload: DeadlineCreateInput
 ): Promise<Deadline> {
+  if (isDemoMode()) {
+    return normalizeDeadline(
+      createDemoDeadline({
+        title: payload.title,
+        due_at: dateOnlyToUtcMidnight(payload.targetDate),
+        target_seconds: hoursToSeconds(payload.targetHours),
+        notes: payload.notes
+      })
+    );
+  }
+
   const userId = await authenticatedUserId();
   const { data, error } = await supabase
     .from("deadlines")
@@ -251,6 +292,18 @@ export async function updateDeadline(
   deadlineId: string,
   payload: DeadlineUpdateInput
 ): Promise<Deadline> {
+  if (isDemoMode()) {
+    return normalizeDeadline(
+      updateDemoDeadline(deadlineId, {
+        ...(payload.title !== undefined ? { title: payload.title } : {}),
+        ...(payload.targetDate !== undefined ? { due_at: dateOnlyToUtcMidnight(payload.targetDate) } : {}),
+        ...(payload.targetHours !== undefined ? { target_seconds: hoursToSeconds(payload.targetHours) } : {}),
+        ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
+        ...(payload.isCompleted !== undefined ? { is_completed: payload.isCompleted } : {})
+      })
+    );
+  }
+
   const userId = await authenticatedUserId();
   const body: Partial<DeadlineRow> = {
     ...(payload.title !== undefined ? { title: payload.title } : {}),
@@ -276,6 +329,11 @@ export async function updateDeadline(
 }
 
 export async function deleteDeadline(_accessToken: string, deadlineId: string): Promise<void> {
+  if (isDemoMode()) {
+    deleteDemoDeadline(deadlineId);
+    return;
+  }
+
   const userId = await authenticatedUserId();
   const { error } = await supabase
     .from("deadlines")

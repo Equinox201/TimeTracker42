@@ -1,6 +1,7 @@
 import { PropsWithChildren, createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { Session as SupabaseSession, User as SupabaseUser } from "@supabase/supabase-js";
 
+import { DEMO_USER, exitDemoMode, isDemoMode } from "../demo/demoMode";
 import { functionsBaseUrl } from "./functionsUrl";
 import { shareAttempt } from "./shareAttempt";
 import { supabase } from "./supabase";
@@ -120,15 +121,29 @@ async function exchangeCodeForTokenHash(exchangeCode: string): Promise<string> {
 
 const signInAttempts = new Map<string, Promise<void>>();
 
+// Not a real Supabase session: demo mode never talks to Supabase or 42.
+const DEMO_SESSION: SessionPayload = {
+  accessToken: "demo-token",
+  refreshToken: "",
+  tokenType: "demo",
+  accessTokenExpiresAt: "2999-01-01T00:00:00.000Z",
+  user: { ...DEMO_USER }
+};
+
 export function AuthProvider({ children }: PropsWithChildren) {
-  const [status, setStatus] = useState<AuthStatus>("booting");
-  const [session, setSession] = useState<SessionPayload | null>(null);
+  const [isDemo] = useState(isDemoMode);
+  const [status, setStatus] = useState<AuthStatus>(isDemo ? "ready" : "booting");
+  const [session, setSession] = useState<SessionPayload | null>(isDemo ? DEMO_SESSION : null);
 
   const startOAuthUrl = useMemo(() => {
     return "#";
   }, []);
 
   useEffect(() => {
+    if (isDemo) {
+      return undefined;
+    }
+
     let isMounted = true;
 
     const loadSession = async () => {
@@ -157,7 +172,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [isDemo]);
 
   const performOAuthSignIn = async (callbackUrl: string) => {
     const { search, hash } = callbackParams(callbackUrl);
@@ -231,6 +246,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
     shareAttempt(signInAttempts, callbackUrl, () => performOAuthSignIn(callbackUrl));
 
   const validAccessToken = async () => {
+    if (isDemo) {
+      return DEMO_SESSION.accessToken;
+    }
+
     const { data, error } = await supabase.auth.getSession();
     if (error || !data.session) {
       setSession(null);
@@ -242,6 +261,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
   };
 
   const signOut = async () => {
+    if (isDemo) {
+      // Full page load so no demo data stays in the query cache.
+      exitDemoMode();
+      window.location.assign("/login");
+      return;
+    }
+
     setSession(null);
     const { error } = await supabase.auth.signOut();
     if (error) {

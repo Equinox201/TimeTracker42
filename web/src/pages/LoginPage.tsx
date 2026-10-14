@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 
+import { enterDemoMode } from "../demo/demoMode";
 import { functionsBaseUrl } from "../lib/functionsUrl";
 import { supabase } from "../lib/supabase";
 
@@ -51,6 +52,11 @@ export function LoginPage() {
     window.location.assign(fortyTwoLoginUrl());
   };
 
+  const tryDemo = () => {
+    enterDemoMode();
+    window.location.assign("/app/main");
+  };
+
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-[520px] items-center px-4 py-10">
       <div className="w-full rounded-card border border-tt42-border bg-tt42-surface p-6 shadow-soft">
@@ -67,6 +73,17 @@ export function LoginPage() {
         >
           Continue with 42
         </button>
+
+        <button
+          type="button"
+          onClick={tryDemo}
+          className="mt-3 flex h-12 w-full items-center justify-center rounded-xl border border-tt42-border bg-tt42-surface2 font-medium text-tt42-text"
+        >
+          Try the demo
+        </button>
+        <p className="mt-2 text-center text-xs text-tt42-muted">
+          Explore with sample data. No 42 account needed.
+        </p>
 
         {enableEmailOtpFallback ? (
           <>

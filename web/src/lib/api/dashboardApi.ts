@@ -1,3 +1,11 @@
+import {
+  demoAttendanceRows,
+  demoGoalRow,
+  demoLatestSuccessfulSyncRun,
+  demoLatestSyncRun,
+  runDemoSync
+} from "../../demo/demoStore";
+import { DEMO_USER, isDemoMode } from "../../demo/demoMode";
 import { functionsBaseUrl } from "../functionsUrl";
 import {
   addSingaporeDaysKey,
@@ -148,6 +156,10 @@ function sumSeconds(rows: AttendanceDailyRow[], from: string, to: string): numbe
 }
 
 async function authenticatedUserId(): Promise<string> {
+  if (isDemoMode()) {
+    return DEMO_USER.id;
+  }
+
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) {
     throw new Error("Not authenticated");
@@ -156,6 +168,10 @@ async function authenticatedUserId(): Promise<string> {
 }
 
 async function getOrCreateGoals(userId: string): Promise<GoalRow> {
+  if (isDemoMode()) {
+    return demoGoalRow();
+  }
+
   const fields = "user_id,daily_seconds,weekly_seconds,monthly_seconds,pace_mode,days_per_week";
   const { data, error } = await supabase
     .from("goals")
@@ -185,6 +201,10 @@ async function getOrCreateGoals(userId: string): Promise<GoalRow> {
 }
 
 async function listAttendance(userId: string, from: string, to: string): Promise<AttendanceDailyRow[]> {
+  if (isDemoMode()) {
+    return demoAttendanceRows(from, to);
+  }
+
   const { data, error } = await supabase
     .from("attendance_daily")
     .select("day,seconds,source,synced_at")
@@ -202,6 +222,10 @@ async function listAttendance(userId: string, from: string, to: string): Promise
 }
 
 async function latestSyncRun(userId: string): Promise<SyncRunRow | null> {
+  if (isDemoMode()) {
+    return demoLatestSyncRun();
+  }
+
   const { data, error } = await supabase
     .from("sync_runs")
     .select("id,status,started_at,finished_at")
@@ -218,6 +242,10 @@ async function latestSyncRun(userId: string): Promise<SyncRunRow | null> {
 }
 
 async function latestSuccessfulSyncRun(userId: string): Promise<SyncRunRow | null> {
+  if (isDemoMode()) {
+    return demoLatestSuccessfulSyncRun();
+  }
+
   const { data, error } = await supabase
     .from("sync_runs")
     .select("id,status,started_at,finished_at")
@@ -362,6 +390,10 @@ export async function getAttendanceHistory(
 }
 
 export async function triggerManualSync(accessToken: string): Promise<ManualSyncResponse> {
+  if (isDemoMode()) {
+    return runDemoSync();
+  }
+
   const response = await fetch(`${functionsBaseUrl()}/forty-two-sync-manual`, {
     method: "POST",
     headers: {
