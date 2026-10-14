@@ -110,10 +110,6 @@ function secondsToHours(value: number): number {
   return Number((value / 3600).toFixed(2));
 }
 
-function hoursToSeconds(value: number): number {
-  return Math.max(0, Math.round(value * 3600));
-}
-
 function isManualSyncResponse(value: unknown): value is ManualSyncResponse {
   if (!value || typeof value !== "object") {
     return false;
