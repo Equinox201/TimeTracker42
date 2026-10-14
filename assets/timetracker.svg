@@ -1,0 +1,95 @@
+<!--
+  TimeTracker42 logo, source for assets/timetracker.png.
+  Style matches the other project cards: portrait 355x461, near-black card, glossy icon cluster,
+  three caption lines. Text uses "DIN Condensed" (macOS); render the PNG on a machine that has it,
+  e.g. with Playwright: page.locator("svg").screenshot() at deviceScaleFactor 2.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="355" height="461" viewBox="0 0 355 461">
+  <defs>
+    <linearGradient id="teal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7ff5e6"/><stop offset="0.55" stop-color="#22c9b8"/><stop offset="1" stop-color="#0f8f86"/>
+    </linearGradient>
+    <linearGradient id="tealText" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8ff8ea"/><stop offset="0.5" stop-color="#2fd2c0"/><stop offset="1" stop-color="#139b8f"/>
+    </linearGradient>
+    <linearGradient id="bezel" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#5a6a7d"/><stop offset="0.45" stop-color="#2a3644"/><stop offset="1" stop-color="#141b24"/>
+    </linearGradient>
+    <radialGradient id="face" cx="0.38" cy="0.3" r="0.9">
+      <stop offset="0" stop-color="#1b2736"/><stop offset="0.7" stop-color="#0d1420"/><stop offset="1" stop-color="#080c13"/>
+    </radialGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8794a5"/><stop offset="0.5" stop-color="#46525f"/><stop offset="1" stop-color="#232c37"/>
+    </linearGradient>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#18222f"/><stop offset="1" stop-color="#0e151e"/>
+    </linearGradient>
+    <linearGradient id="area" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2fd2c0" stop-opacity="0.45"/><stop offset="1" stop-color="#2fd2c0" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="bgGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#10c9b8" stop-opacity="0.16"/>
+      <stop offset="0.6" stop-color="#10c9b8" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#10c9b8" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#000" flood-opacity="0.55"/>
+    </filter>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="0" stdDeviation="3.2" flood-color="#2fd2c0" flood-opacity="0.65"/>
+    </filter>
+  </defs>
+
+  <!-- card -->
+  <rect width="355" height="461" fill="#06090d"/>
+  <rect x="7" y="7" width="341" height="447" rx="24" fill="#0c1118" stroke="#1d2733" stroke-width="1.5"/>
+  <rect x="7" y="7" width="341" height="447" rx="24" fill="none" stroke="#ffffff" stroke-opacity="0.04" stroke-width="1" transform="translate(0.5 0.5)"/>
+  <circle cx="150" cy="165" r="165" fill="url(#bgGlow)"/>
+
+  <!-- calendar tile (behind) -->
+  <g filter="url(#shadow)">
+    <rect x="206" y="40" width="120" height="116" rx="13" fill="url(#tile)" stroke="#2c3a4b" stroke-width="1.4"/>
+    <path d="M206 53 a13 13 0 0 1 13 -13 h94 a13 13 0 0 1 13 13 v14 h-120 z" fill="url(#teal)" fill-opacity="0.9"/>
+    <circle cx="232" cy="40" r="4.2" fill="#0c1118" stroke="#9fb0c2" stroke-width="1.4"/>
+    <circle cx="300" cy="40" r="4.2" fill="#0c1118" stroke="#9fb0c2" stroke-width="1.4"/>
+    <rect x="218" y="78" width="15" height="12" rx="3" fill="#1a2430" /><rect x="237" y="78" width="15" height="12" rx="3" fill="#1a2430" /><rect x="256" y="78" width="15" height="12" rx="3" fill="url(#teal)" fill-opacity="0.55" /><rect x="275" y="78" width="15" height="12" rx="3" fill="url(#teal)" fill-opacity="0.35" /><rect x="294" y="78" width="15" height="12" rx="3" fill="url(#teal)" fill-opacity="0.70" /><rect x="218" y="94" width="15" height="12" rx="3" fill="url(#teal)" fill-opacity="0.70" /><rect x="237" y="94" width="15" height="12" rx="3" fill="url(#teal)" fill-opacity="0.55" /><rect x="256" y="94" width="15" height="12" rx="3" fill="#1a2430" /><rect x="275" y="94" width="15" height="12" rx="3" fill="#1a2430" /><rect x="294" y="94" width="15" height="12" rx="3" fill="url(#teal)" fill-opacity="0.45" /><rect x="218" y="110" width="15" height="12" rx="3" fill="url(#teal)" fill-opacity="0.80" /><rect x="237" y="110" width="15" height="12" rx="3" fill="url(#teal)" fill-opacity="0.60" /><rect x="256" y="110" width="15" height="12" rx="3" fill="url(#teal)" fill-opacity="0.50" /><rect x="275" y="110" width="15" height="12" rx="3" fill="url(#teal)" fill-opacity="0.85" /><rect x="294" y="110" width="15" height="12" rx="3" fill="#1a2430" /><rect x="218" y="126" width="15" height="12" rx="3" fill="none" stroke="#2b394a" stroke-width="1"/><rect x="237" y="126" width="15" height="12" rx="3" fill="none" stroke="#2b394a" stroke-width="1"/><rect x="256" y="126" width="15" height="12" rx="3" fill="none" stroke="#2b394a" stroke-width="1"/><rect x="275" y="126" width="15" height="12" rx="3" fill="none" stroke="#2b394a" stroke-width="1"/><rect x="294" y="126" width="15" height="12" rx="3" fill="none" stroke="#2b394a" stroke-width="1"/><rect x="254.5" y="108.5" width="18" height="15" rx="4" fill="none" stroke="#e8fffb" stroke-width="1.6"/>
+  </g>
+
+  <!-- stopwatch -->
+  <g filter="url(#shadow)">
+    <rect x="115" y="44" width="26" height="16" rx="4" fill="url(#metal)" stroke="#0a0f15" stroke-width="1"/>
+    <rect x="121" y="58" width="14" height="14" fill="url(#metal)"/>
+    <g transform="rotate(42 128 160)"><rect x="121" y="60" width="14" height="13" rx="3.5" fill="url(#metal)" stroke="#0a0f15" stroke-width="1"/></g>
+    <circle cx="128" cy="160" r="88" fill="url(#bezel)" stroke="#0a0f15" stroke-width="2"/>
+    <circle cx="128" cy="160" r="82" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1.4"/>
+    <circle cx="128" cy="160" r="78" fill="url(#face)" stroke="#05080c" stroke-width="2"/>
+  </g>
+  <line x1="128.00" y1="90.00" x2="128.00" y2="85.00" stroke="#8fa3b8" stroke-width="1.6"/><line x1="135.58" y1="87.90" x2="135.84" y2="85.41" stroke="#3c4b5c" stroke-width="0.9"/><line x1="143.07" y1="89.08" x2="143.59" y2="86.64" stroke="#3c4b5c" stroke-width="0.9"/><line x1="150.40" y1="91.05" x2="151.18" y2="88.67" stroke="#3c4b5c" stroke-width="0.9"/><line x1="157.49" y1="93.77" x2="158.51" y2="91.48" stroke="#3c4b5c" stroke-width="0.9"/><line x1="163.00" y1="99.38" x2="165.50" y2="95.05" stroke="#8fa3b8" stroke-width="1.6"/><line x1="170.61" y1="101.35" x2="172.08" y2="99.32" stroke="#3c4b5c" stroke-width="0.9"/><line x1="176.51" y1="106.12" x2="178.18" y2="104.26" stroke="#3c4b5c" stroke-width="0.9"/><line x1="181.88" y1="111.49" x2="183.74" y2="109.82" stroke="#3c4b5c" stroke-width="0.9"/><line x1="186.65" y1="117.39" x2="188.68" y2="115.92" stroke="#3c4b5c" stroke-width="0.9"/><line x1="188.62" y1="125.00" x2="192.95" y2="122.50" stroke="#8fa3b8" stroke-width="1.6"/><line x1="194.23" y1="130.51" x2="196.52" y2="129.49" stroke="#3c4b5c" stroke-width="0.9"/><line x1="196.95" y1="137.60" x2="199.33" y2="136.82" stroke="#3c4b5c" stroke-width="0.9"/><line x1="198.92" y1="144.93" x2="201.36" y2="144.41" stroke="#3c4b5c" stroke-width="0.9"/><line x1="200.10" y1="152.42" x2="202.59" y2="152.16" stroke="#3c4b5c" stroke-width="0.9"/><line x1="198.00" y1="160.00" x2="203.00" y2="160.00" stroke="#8fa3b8" stroke-width="1.6"/><line x1="200.10" y1="167.58" x2="202.59" y2="167.84" stroke="#3c4b5c" stroke-width="0.9"/><line x1="198.92" y1="175.07" x2="201.36" y2="175.59" stroke="#3c4b5c" stroke-width="0.9"/><line x1="196.95" y1="182.40" x2="199.33" y2="183.18" stroke="#3c4b5c" stroke-width="0.9"/><line x1="194.23" y1="189.49" x2="196.52" y2="190.51" stroke="#3c4b5c" stroke-width="0.9"/><line x1="188.62" y1="195.00" x2="192.95" y2="197.50" stroke="#8fa3b8" stroke-width="1.6"/><line x1="186.65" y1="202.61" x2="188.68" y2="204.08" stroke="#3c4b5c" stroke-width="0.9"/><line x1="181.88" y1="208.51" x2="183.74" y2="210.18" stroke="#3c4b5c" stroke-width="0.9"/><line x1="176.51" y1="213.88" x2="178.18" y2="215.74" stroke="#3c4b5c" stroke-width="0.9"/><line x1="170.61" y1="218.65" x2="172.08" y2="220.68" stroke="#3c4b5c" stroke-width="0.9"/><line x1="163.00" y1="220.62" x2="165.50" y2="224.95" stroke="#8fa3b8" stroke-width="1.6"/><line x1="157.49" y1="226.23" x2="158.51" y2="228.52" stroke="#3c4b5c" stroke-width="0.9"/><line x1="150.40" y1="228.95" x2="151.18" y2="231.33" stroke="#3c4b5c" stroke-width="0.9"/><line x1="143.07" y1="230.92" x2="143.59" y2="233.36" stroke="#3c4b5c" stroke-width="0.9"/><line x1="135.58" y1="232.10" x2="135.84" y2="234.59" stroke="#3c4b5c" stroke-width="0.9"/><line x1="128.00" y1="230.00" x2="128.00" y2="235.00" stroke="#8fa3b8" stroke-width="1.6"/><line x1="120.42" y1="232.10" x2="120.16" y2="234.59" stroke="#3c4b5c" stroke-width="0.9"/><line x1="112.93" y1="230.92" x2="112.41" y2="233.36" stroke="#3c4b5c" stroke-width="0.9"/><line x1="105.60" y1="228.95" x2="104.82" y2="231.33" stroke="#3c4b5c" stroke-width="0.9"/><line x1="98.51" y1="226.23" x2="97.49" y2="228.52" stroke="#3c4b5c" stroke-width="0.9"/><line x1="93.00" y1="220.62" x2="90.50" y2="224.95" stroke="#8fa3b8" stroke-width="1.6"/><line x1="85.39" y1="218.65" x2="83.92" y2="220.68" stroke="#3c4b5c" stroke-width="0.9"/><line x1="79.49" y1="213.88" x2="77.82" y2="215.74" stroke="#3c4b5c" stroke-width="0.9"/><line x1="74.12" y1="208.51" x2="72.26" y2="210.18" stroke="#3c4b5c" stroke-width="0.9"/><line x1="69.35" y1="202.61" x2="67.32" y2="204.08" stroke="#3c4b5c" stroke-width="0.9"/><line x1="67.38" y1="195.00" x2="63.05" y2="197.50" stroke="#8fa3b8" stroke-width="1.6"/><line x1="61.77" y1="189.49" x2="59.48" y2="190.51" stroke="#3c4b5c" stroke-width="0.9"/><line x1="59.05" y1="182.40" x2="56.67" y2="183.18" stroke="#3c4b5c" stroke-width="0.9"/><line x1="57.08" y1="175.07" x2="54.64" y2="175.59" stroke="#3c4b5c" stroke-width="0.9"/><line x1="55.90" y1="167.58" x2="53.41" y2="167.84" stroke="#3c4b5c" stroke-width="0.9"/><line x1="58.00" y1="160.00" x2="53.00" y2="160.00" stroke="#8fa3b8" stroke-width="1.6"/><line x1="55.90" y1="152.42" x2="53.41" y2="152.16" stroke="#3c4b5c" stroke-width="0.9"/><line x1="57.08" y1="144.93" x2="54.64" y2="144.41" stroke="#3c4b5c" stroke-width="0.9"/><line x1="59.05" y1="137.60" x2="56.67" y2="136.82" stroke="#3c4b5c" stroke-width="0.9"/><line x1="61.77" y1="130.51" x2="59.48" y2="129.49" stroke="#3c4b5c" stroke-width="0.9"/><line x1="67.38" y1="125.00" x2="63.05" y2="122.50" stroke="#8fa3b8" stroke-width="1.6"/><line x1="69.35" y1="117.39" x2="67.32" y2="115.92" stroke="#3c4b5c" stroke-width="0.9"/><line x1="74.12" y1="111.49" x2="72.26" y2="109.82" stroke="#3c4b5c" stroke-width="0.9"/><line x1="79.49" y1="106.12" x2="77.82" y2="104.26" stroke="#3c4b5c" stroke-width="0.9"/><line x1="85.39" y1="101.35" x2="83.92" y2="99.32" stroke="#3c4b5c" stroke-width="0.9"/><line x1="93.00" y1="99.38" x2="90.50" y2="95.05" stroke="#8fa3b8" stroke-width="1.6"/><line x1="98.51" y1="93.77" x2="97.49" y2="91.48" stroke="#3c4b5c" stroke-width="0.9"/><line x1="105.60" y1="91.05" x2="104.82" y2="88.67" stroke="#3c4b5c" stroke-width="0.9"/><line x1="112.93" y1="89.08" x2="112.41" y2="86.64" stroke="#3c4b5c" stroke-width="0.9"/><line x1="120.42" y1="87.90" x2="120.16" y2="85.41" stroke="#3c4b5c" stroke-width="0.9"/>
+  <circle cx="128" cy="160" r="58" fill="none" stroke="#1a2431" stroke-width="12"/>
+  <circle cx="128" cy="160" r="58" fill="none" stroke="url(#teal)" stroke-width="12" stroke-linecap="round"
+          stroke-dasharray="247.81 364.42" transform="rotate(-90 128 160)" filter="url(#glow)"/>
+  <circle cx="110.08" cy="215.16" r="6.2" fill="#f4fffd" stroke="#06292a" stroke-width="2"/>
+  <text x="128" y="179" text-anchor="middle" font-family="'DIN Condensed','Avenir Next Condensed','Arial Narrow',sans-serif"
+        font-weight="700" font-size="58" fill="#ffffff" letter-spacing="1">42</text>
+  <path d="M62 132 A72 72 0 0 1 120 88" fill="none" stroke="#ffffff" stroke-opacity="0.09" stroke-width="2.4" stroke-linecap="round"/>
+
+  <!-- chart card (front) -->
+  <g filter="url(#shadow)">
+    <rect x="172" y="178" width="154" height="104" rx="13" fill="url(#tile)" stroke="#2f7f78" stroke-opacity="0.8" stroke-width="1.6"/>
+    <line x1="188" y1="198" x2="310" y2="198" stroke="#1f2a37" stroke-width="1"/>
+    <line x1="188" y1="226" x2="310" y2="226" stroke="#1f2a37" stroke-width="1"/>
+    <line x1="188" y1="254" x2="310" y2="254" stroke="#1f2a37" stroke-width="1"/>
+    <path d="M190 262 L215 252 L238 244 L262 226 L286 212" fill="none" stroke="#7d8ea1" stroke-width="2" stroke-dasharray="4 4" stroke-linecap="round"/>
+    <path d="M190 264 L215 256 L238 252 L262 234 L286 221 L286 268 L190 268 Z" fill="url(#area)"/>
+    <path d="M190 264 L215 256 L238 252 L262 234 L286 221" fill="none" stroke="url(#teal)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
+    <circle cx="286" cy="221" r="5" fill="#f4fffd" stroke="#0b2f2c" stroke-width="2"/>
+    <path d="M296 214 l8 -9 m0 0 h-6 m6 0 v6" fill="none" stroke="#2fd2c0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.0"/>
+  </g>
+
+  <!-- text -->
+  <g font-family="'DIN Condensed','Avenir Next Condensed','Arial Narrow',sans-serif" text-anchor="middle" font-weight="700">
+    <text x="177.5" y="334" font-size="26" letter-spacing="2.2" fill="#cfd8e3">ATTENDANCE TRACKER</text>
+    <text x="177.5" y="388" font-size="58" letter-spacing="1.5" fill="url(#tealText)">TIMETRACKER42</text>
+    <text x="177.5" y="428" font-size="22" letter-spacing="2" fill="#8c9db0">PACE AND PLANNING WEB APP</text>
+  </g>
+</svg>
