@@ -2,6 +2,7 @@ import { PropsWithChildren, createContext, useContext, useEffect, useMemo, useSt
 import type { Session as SupabaseSession, User as SupabaseUser } from "@supabase/supabase-js";
 
 import { functionsBaseUrl } from "./functionsUrl";
+import { shareAttempt } from "./shareAttempt";
 import { supabase } from "./supabase";
 
 type AuthStatus = "booting" | "ready";
@@ -226,15 +227,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
   // The exchange code is single-use, but the callback page's effect re-runs whenever this
   // provider's context value changes (booting -> ready, session set). Share one in-flight
   // attempt per callback URL so a re-run reuses it instead of replaying a consumed code.
-  const completeOAuthSignIn = (callbackUrl: string): Promise<void> => {
-    const existing = signInAttempts.get(callbackUrl);
-    if (existing) {
-      return existing;
-    }
-    const attempt = performOAuthSignIn(callbackUrl);
-    signInAttempts.set(callbackUrl, attempt);
-    return attempt;
-  };
+  const completeOAuthSignIn = (callbackUrl: string): Promise<void> =>
+    shareAttempt(signInAttempts, callbackUrl, () => performOAuthSignIn(callbackUrl));
 
   const validAccessToken = async () => {
     const { data, error } = await supabase.auth.getSession();
