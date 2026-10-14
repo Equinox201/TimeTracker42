@@ -1,4 +1,4 @@
-import { createClient } from "supabase";
+import { createClient, type SupabaseClient } from "supabase";
 
 import { createLogger, errorMessage } from "../_shared/log.ts";
 
@@ -12,7 +12,7 @@ const SINGAPORE_OFFSET_MS = 8 * 60 * 60 * 1000;
 const corsMethods = "POST, OPTIONS";
 const corsHeadersList = "authorization, x-client-info, apikey, content-type";
 
-type SupabaseAdminClient = ReturnType<typeof createClient>;
+type SupabaseAdminClient = SupabaseClient;
 
 type ProfileRow = {
   id: string;

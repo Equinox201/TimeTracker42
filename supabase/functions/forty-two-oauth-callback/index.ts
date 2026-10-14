@@ -1,4 +1,4 @@
-import { createClient } from "supabase";
+import { createClient, type SupabaseClient } from "supabase";
 
 import { createLogger, errorMessage, type Logger } from "../_shared/log.ts";
 
@@ -12,7 +12,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, OPTIONS"
 };
 
-type SupabaseAdminClient = ReturnType<typeof createClient>;
+type SupabaseAdminClient = SupabaseClient;
 
 type FortyTwoTokenResponse = {
   access_token?: string;

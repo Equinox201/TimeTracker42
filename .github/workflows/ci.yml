@@ -39,9 +39,12 @@ jobs:
           deno-version: v2.x
       - name: Type-check each function
         run: |
+          # Check every function, then fail once, so one run lists all problems.
+          failed=0
           for dir in supabase/functions/*/; do
             case "$dir" in *_shared*) continue ;; esac
             echo "::group::$dir"
-            deno check --config "$dir/deno.json" "$dir/index.ts"
+            deno check --config "$dir/deno.json" "$dir/index.ts" || failed=1
             echo "::endgroup::"
           done
+          exit $failed
