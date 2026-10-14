@@ -1,5 +1,7 @@
 import { createClient } from "supabase";
 
+import { bindingRequired, isBindingHash } from "../_shared/binding.ts";
+import { randomToken, sha256Hex } from "../_shared/crypto.ts";
 import { createLogger, errorMessage } from "../_shared/log.ts";
 
 const OAUTH_AUTHORIZE_URL = "https://api.intra.42.fr/oauth/authorize";
@@ -27,30 +29,6 @@ function requiredEnv(name: string): string {
     throw new Error(`Missing ${name}`);
   }
   return value;
-}
-
-function base64Url(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return btoa(binary)
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replaceAll("=", "");
-}
-
-function generateState(): string {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return base64Url(bytes);
-}
-
-async function sha256Hex(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
 }
 
 function appOriginUrl(appOrigin: string): URL {
@@ -117,7 +95,18 @@ Deno.serve(async (req) => {
     return jsonError("Invalid redirect_to.", 400);
   }
 
-  const state = generateState();
+  // Browser binding: the SHA-256 of a verifier the browser keeps. See _shared/binding.ts.
+  const binding = new URL(req.url).searchParams.get("binding");
+  if (binding !== null && !isBindingHash(binding)) {
+    log.warn("invalid_binding");
+    return jsonError("Invalid binding.", 400);
+  }
+  if (binding === null && bindingRequired(Deno.env.get("REQUIRE_LOGIN_BINDING"))) {
+    log.warn("binding_missing");
+    return jsonError("Login binding is required.", 400);
+  }
+
+  const state = randomToken();
   const stateHash = await sha256Hex(state);
   const expiresAt = new Date(Date.now() + STATE_TTL_MS).toISOString();
 
@@ -134,6 +123,7 @@ Deno.serve(async (req) => {
   const { error } = await supabase.from("oauth_states").insert({
     state_hash: stateHash,
     redirect_to: redirectTo,
+    binding_hash: binding,
     expires_at: expiresAt
   });
 

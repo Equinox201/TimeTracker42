@@ -37,6 +37,8 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+      - name: Unit tests (shared modules)
+        run: deno test supabase/functions/_shared/
       - name: Type-check each function
         run: |
           # Check every function, then fail once, so one run lists all problems.
@@ -48,3 +50,17 @@ jobs:
             echo "::endgroup::"
           done
           exit $failed
+
+  database:
+    name: Database (migrations + RLS tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.107.0
+      - name: Start local Supabase (database, auth, API only)
+        run: |
+          supabase start -x realtime,storage-api,imgproxy,mailpit,studio,edge-runtime,logflare,vector,supavisor,postgres-meta
+      - name: Run pgTAP tests
+        run: supabase test db

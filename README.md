@@ -198,6 +198,13 @@ Do not commit actual secret values.
 - **Custom 42 OAuth on Edge Functions.** The browser never sees 42 tokens or the client secret. The
   callback exchanges the code server-side, maps the stable 42 user id to a Supabase user, and hands the
   browser a one-time exchange code instead of a session.
+- **Browser-bound login.** Before leaving for 42 the browser keeps a random verifier and sends only
+  its SHA-256. The binding rides with the OAuth state and the exchange code, and redeeming the code
+  requires the original verifier, so a callback URL replayed in another browser cannot sign it in
+  (login CSRF). Redemption is one conditional `UPDATE`, so a wrong verifier does not burn the code.
+- **Least-privilege database access.** API roles can only read their own rows (and write goals and
+  deadlines). The 42 identity mapping, tokens, sync data and auth tables are writable only by Edge
+  Functions; this is enforced by grants and covered by pgTAP tests (`supabase/tests/database`).
 - **Single-use, hashed secrets.** OAuth `state` and exchange codes are stored as SHA-256 hashes and
   consumed once, which rejects CSRF and replay. The frontend shares one in-flight sign-in per callback
   URL, because React effects can re-run and a consumed code is (correctly) rejected.
@@ -223,6 +230,12 @@ cd web
 npm run typecheck
 npm test
 npm run build
+
+# Database: migrations plus row-level-security and grant tests (needs Docker)
+supabase start && supabase test db
+
+# Edge Function shared modules
+deno test supabase/functions/_shared/
 ```
 
 Edge Functions are type-checked with Deno, one function at a time:

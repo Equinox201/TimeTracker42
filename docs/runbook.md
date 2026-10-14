@@ -107,7 +107,9 @@ below carries the actual reason.
 | `auth_setup_failed` | `auth_setup_failed` | Supabase user/profile/token writes failed; check `reason` |
 | `invalid_state` | `invalid_state` | OAuth state expired (10 min) or already used |
 | `forty_two_denied` | `forty_two_denied` | User declined on 42 |
-| – (HTTP 400 on `auth-exchange`) | `exchange_code_rejected` | Single-use exchange code replayed |
+| – (HTTP 400 on `auth-exchange`) | `exchange_code_rejected` | Expired or replayed code, or redeemed without the matching verifier (`has_verifier` says which side was missing) |
+| – (HTTP 400 on `forty-two-oauth-start`) | `invalid_binding` / `binding_missing` | Malformed binding, or none while `REQUIRE_LOGIN_BINDING=true` |
+| – (HTTP 400 on `auth-exchange`) | `verifier_missing` | No verifier sent while `REQUIRE_LOGIN_BINDING=true` |
 | – (sync says "42 session expired") | `token_refresh_rejected` | Refresh token or client secret rejected by 42 |
 
 ### Rotating the 42 client secret
@@ -135,3 +137,25 @@ URL (`web/src/lib/shareAttempt.ts`, covered by unit tests).
 
 **How it was found.** Function request logs showed one `forty-two-oauth-callback` followed by three
 `auth-exchange` POSTs about a second apart, which pointed at the client rather than at 42.
+
+## Rolling out browser-bound login
+
+The binding is enforced whenever the browser sends one; `REQUIRE_LOGIN_BINDING` only controls whether a
+login *without* a binding is accepted, so it can be switched on after everything is deployed.
+
+1. Apply the migration (adds `binding_hash` columns, tightens grants). Apply it before the functions.
+2. Deploy the Edge Functions and the frontend (a merge to `main` does both).
+3. Sign in once and confirm `login_succeeded` and a 200 from `auth-exchange`.
+4. Enforce: `npx supabase secrets set REQUIRE_LOGIN_BINDING=true --project-ref <ref>`.
+
+Rollback: unset `REQUIRE_LOGIN_BINDING`. If logins fail only for users who keep the app as an iOS home-screen
+app, the verifier is stored in the browser context that started the login, and a login that finishes in a
+different context (for example an in-app Safari sheet) cannot present it.
+
+## Database access model
+
+`anon` has no table privileges. `authenticated` can read `profiles`, `attendance_daily`, `location_sessions`
+and `sync_runs` (own rows via RLS) and read/write `goals` and `deadlines`. Everything else, including
+`forty_two_tokens`, `oauth_states` and `auth_exchange_codes`, is service-role only. New tables get no API
+access by default (`alter default privileges`), so a migration that adds one must grant explicitly and add
+a case to `supabase/tests/database/security.test.sql`.
