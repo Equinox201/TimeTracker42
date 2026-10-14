@@ -26,9 +26,13 @@ grant select, insert, update, delete on public.goals to authenticated;
 grant select, insert, update, delete on public.deadlines to authenticated;
 -- forty_two_tokens, oauth_states and auth_exchange_codes stay unreachable for API roles.
 
--- New tables must opt in to API access explicitly.
+-- New tables must opt in to API access explicitly. State the end result outright instead of
+-- relying on whatever defaults an environment started with (a fresh local database ended up
+-- with service_role missing SELECT/INSERT/UPDATE/DELETE on tables created later).
 alter default privileges for role postgres in schema public
   revoke all on tables from anon, authenticated;
+alter default privileges for role postgres in schema public
+  grant all on tables to service_role;
 
 -- 3. rls_auto_enable() is an event-trigger helper; it should not be callable via /rpc.
 do $$

@@ -2,7 +2,7 @@
 -- Verifies that the API roles cannot change identity mappings, read other users' rows,
 -- or touch server-only tables.
 begin;
-select plan(18);
+select plan(21);
 
 -- Two users, their profiles and some rows, created as the superuser role.
 insert into auth.users (id, email, aud, role, instance_id)
@@ -92,6 +92,17 @@ select lives_ok(
   $$update public.profiles set display_name = 'set by edge function' where id = '00000000-0000-0000-0000-0000000000a1'$$,
   'service role can still write profiles'
 );
+
+-- ===== Default privileges for tables created in future migrations =====
+reset role;
+create table public.__acl_probe (id integer);
+
+select ok(has_table_privilege('service_role', 'public.__acl_probe', 'select, insert, update, delete'),
+  'new tables are fully accessible to the service role');
+select ok(not has_table_privilege('authenticated', 'public.__acl_probe', 'select'),
+  'new tables are not readable by authenticated until granted');
+select ok(not has_table_privilege('anon', 'public.__acl_probe', 'select'),
+  'new tables are not readable by anon until granted');
 
 select * from finish();
 rollback;
