@@ -20,6 +20,7 @@ function fortyTwoLoginUrl(binding: string | null): string {
 const enableEmailOtpFallback = import.meta.env.VITE_ENABLE_EMAIL_OTP_FALLBACK === "true";
 
 export function LoginPage() {
+  const wasDeleted = new URLSearchParams(window.location.search).get("deleted") === "1";
   const [email, setEmail] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -79,6 +80,12 @@ export function LoginPage() {
             </span>
             <span className="text-base font-semibold tracking-tight">TimeTracker</span>
           </div>
+
+          {wasDeleted ? (
+            <Banner tone="success" className="mt-8 max-w-md">
+              Your account and data were deleted. You can sign in again at any time to start fresh.
+            </Banner>
+          ) : null}
 
           <h1 className="mt-10 text-4xl font-semibold leading-[1.1] tracking-tight md:text-5xl">
             Know if you are on pace for your attendance goal.

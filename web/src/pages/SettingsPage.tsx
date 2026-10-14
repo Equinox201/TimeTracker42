@@ -29,6 +29,7 @@ import { Card } from "../components/ui/Card";
 import { buttonClass } from "../components/ui/Button";
 import { Banner } from "../components/ui/Banner";
 import { Skeleton } from "../components/ui/Skeleton";
+import { DeleteDataCard } from "../components/account/DeleteDataCard";
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -616,6 +617,8 @@ export function SettingsPage() {
           )}
         </div>
       </Card>
+
+      <DeleteDataCard />
     </section>
   );
 }

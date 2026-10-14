@@ -40,6 +40,7 @@ All screenshots are generated from demo mode with `npm run screenshots` in `web/
 - **History.** Six months of totals and a month calendar with attendance per day.
 - **Manual sync** from the 42 API with clear freshness and failure status.
 - **Demo mode** with synthetic data, and light / dark / system themes.
+- **Your data, your call.** A "Delete my data" button removes the account and everything stored for it; see [docs/privacy.md](docs/privacy.md).
 - **Responsive.** A bottom tab bar on phones (PWA-friendly), a side navigation and two-column
   dashboard on desktop.
 
@@ -53,7 +54,7 @@ All screenshots are generated from demo mode with `npm run screenshots` in `web/
 | `/app/main` | Dashboard |
 | `/app/history` | Six-month history and monthly calendar |
 | `/app/plan` | Attendance planner |
-| `/app/settings` | Theme, account, goals and deadlines |
+| `/app/settings` | Theme, account, goals, deadlines and "Delete my data" |
 
 ## Demo Mode
 
@@ -82,6 +83,7 @@ the landing page.
   - forty-two-oauth-callback
   - auth-exchange
   - forty-two-sync-manual
+  - delete-account
           |
           v
        [42 API]
@@ -222,6 +224,7 @@ npx supabase functions deploy forty-two-oauth-start
 npx supabase functions deploy forty-two-oauth-callback
 npx supabase functions deploy auth-exchange
 npx supabase functions deploy forty-two-sync-manual
+npx supabase functions deploy delete-account
 
 npx supabase secrets set FORTY_TWO_CLIENT_ID=... FORTY_TWO_CLIENT_SECRET=...
 npx supabase secrets set FORTY_TWO_REDIRECT_URI=... FORTY_TWO_AUTH_EMAIL_DOMAIN=... APP_ORIGIN=...
@@ -311,7 +314,7 @@ tinted backgrounds.
 - Goal changes are not versioned, so changing today's goal reclassifies past calendar days.
 - Sync is manual; scheduled, incremental sync is the natural next step.
 - Planning models campus attendance only, not study time or per-project allocation.
-- Offline history and CSV export, and an account disconnect / delete flow, are not built.
+- Offline history and CSV export are not built.
 - 42 tokens could be encrypted or moved to Vault-backed storage.
 - The development email OTP fallback should be removed once production 42 login has enough burn-in.
 - Visual regression tests (Playwright screenshots) are not in CI; screenshots are generated on demand.

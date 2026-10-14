@@ -166,3 +166,12 @@ and `sync_runs` (own rows via RLS) and read/write `goals` and `deadlines`. Every
 service role full access and the API roles nothing (`alter default privileges`), so a migration that adds
 a user-facing table must `grant` the minimum to `authenticated` explicitly, enable RLS with policies, and
 add a case to `supabase/tests/database/security.test.sql`.
+
+## Deleting a user's data
+
+Users do this themselves from **Settings, then Delete my data** (`delete-account` function). For
+support cases it can be done by hand: delete the user in Supabase **Authentication, then Users**; the
+cascade removes all of their rows. Log lines mentioning the user id are not removed.
+
+Log events: `account_deleted` (success, with the internal user id), `delete_rejected` (wrong or missing
+confirmation), `delete_failed` (the admin delete errored; the user is unchanged).

@@ -98,6 +98,15 @@ test.describe("settings and history", () => {
     await expect(page.getByRole("link", { name: "Open the planner" })).toBeVisible();
   });
 
+  test("deleting data is explained but unavailable in demo mode", async ({ page }) => {
+    await enterDemo(page);
+    await goToTab(page, "Settings");
+
+    await expect(page.getByRole("heading", { name: "Delete my data" })).toBeVisible();
+    await expect(page.getByText("Not available in demo mode")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Delete my data" })).toHaveCount(0);
+  });
+
   test("history shows the monthly chart", async ({ page }) => {
     await enterDemo(page);
     await goToTab(page, "History");

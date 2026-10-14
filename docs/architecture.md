@@ -10,7 +10,7 @@ and an attendance planner.
 
 - **Cloudflare Pages frontend:** React, TypeScript, Vite, Tailwind CSS. A PWA.
 - **Supabase Auth:** the browser session.
-- **Supabase Edge Functions:** 42 OAuth, auth exchange and manual sync. The only code that holds secrets.
+- **Supabase Edge Functions:** 42 OAuth, auth exchange, manual sync and account deletion. The only code that holds secrets.
 - **Supabase Postgres:** user data protected by row-level security, plus server-only tables.
 - **42 API:** OAuth and the location sessions that attendance is derived from.
 
@@ -74,6 +74,14 @@ arrive without a binding.
 7. `finalize_sync()` writes sessions, daily totals and the run status atomically.
 8. The dashboard and history refetch from Supabase.
 
+## Account Deletion
+
+Settings has **Delete my data**. After the user types the confirmation word, `delete-account` verifies the
+Supabase session and deletes the auth user; foreign keys with `ON DELETE CASCADE` remove every row owned
+by that user (covered by a pgTAP test). The browser then clears its local session and returns to the
+landing page. It is unavailable in demo mode. What is stored and why is described in
+[privacy.md](privacy.md).
+
 ## Frontend Model
 
 - All day keys are **Singapore days** (`web/src/lib/singaporeDate.ts`), matching how the sync function
@@ -111,5 +119,5 @@ tests. See the root README for commands.
 - Scheduled, incremental sync.
 - Goal versioning, so changing a goal does not reclassify past days.
 - Token encryption or Vault-backed token storage.
-- Offline history and CSV export; account disconnect and delete.
+- Offline history and CSV export.
 - Remove the development email OTP fallback after production burn-in.

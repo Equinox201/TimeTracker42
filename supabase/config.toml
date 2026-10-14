@@ -397,6 +397,9 @@ verify_jwt = false
 [functions.forty-two-sync-manual]
 verify_jwt = true
 
+[functions.delete-account]
+verify_jwt = true
+
 [analytics]
 enabled = true
 port = 54327
