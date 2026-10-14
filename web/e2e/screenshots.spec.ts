@@ -41,3 +41,32 @@ test("planner", async ({ page }) => {
   await page.waitForTimeout(800);
   await page.screenshot({ path: path.join(OUT, "planner.png") });
 });
+
+test.describe("phone", () => {
+  test.use({
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+    colorScheme: "dark"
+  });
+
+  test("dashboard on a phone", async ({ page }) => {
+    await enterDemo(page);
+    await page.getByRole("progressbar").waitFor();
+    await page.waitForTimeout(2500);
+    await page.screenshot({ path: path.join(OUT, "dashboard-phone.png") });
+  });
+
+  test("planner on a phone", async ({ page }) => {
+    await enterDemo(page);
+    await goToTab(page, "Plan");
+    // Bring the calendar to the top of the viewport; that is what this image is for.
+    await page.getByText("Tap a day to take it off").evaluate((element) => {
+      element.scrollIntoView({ block: "start" });
+      window.scrollBy(0, -16);
+    });
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: path.join(OUT, "planner-phone.png") });
+  });
+});
