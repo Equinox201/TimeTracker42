@@ -116,3 +116,22 @@ below carries the actual reason.
 2. Update `FORTY_TWO_CLIENT_SECRET` in Supabase (Edge Functions → Secrets, or
    `npx supabase secrets set FORTY_TWO_CLIENT_SECRET=...`). No redeploy is needed.
 3. Sign in again and confirm `login_succeeded` appears in the logs.
+
+## Incident notes: sign-in failing after deployment (October 2026)
+
+**Symptom.** Signing in with 42 ended on `/auth/callback?error=forty_two_exchange_failed`, and after
+the fix below, on "Could not complete 42 sign-in. Please try again."
+
+**Cause 1: 42 rejected the token exchange.** The Edge Function swallowed the failure, so the logs only
+showed a 302. The error code pointed at the exchange step, and rotating `FORTY_TWO_CLIENT_SECRET` fixed
+it, consistent with a stale client secret. The response body from 42 was not logged at the time, which is
+why structured logging (`token_exchange_rejected`) was added.
+
+**Cause 2: the single-use exchange code was posted three times.** `AuthCallbackPage` re-ran its effect
+whenever the auth context changed (`booting` to `ready`, then session set), and each run POSTed the same
+`exchange_code` to `auth-exchange`. One call succeeded (200) and the replays were rejected (400), so the
+page showed an error although the session had been created. The sign-in attempt is now shared per callback
+URL (`web/src/lib/shareAttempt.ts`, covered by unit tests).
+
+**How it was found.** Function request logs showed one `forty-two-oauth-callback` followed by three
+`auth-exchange` POSTs about a second apart, which pointed at the client rather than at 42.
