@@ -162,6 +162,7 @@ different context (for example an in-app Safari sheet) cannot present it.
 
 `anon` has no table privileges. `authenticated` can read `profiles`, `attendance_daily`, `location_sessions`
 and `sync_runs` (own rows via RLS) and read/write `goals` and `deadlines`. Everything else, including
-`forty_two_tokens`, `oauth_states` and `auth_exchange_codes`, is service-role only. New tables get no API
-access by default (`alter default privileges`), so a migration that adds one must grant explicitly and add
-a case to `supabase/tests/database/security.test.sql`.
+`forty_two_tokens`, `oauth_states` and `auth_exchange_codes`, is service-role only. New tables give the
+service role full access and the API roles nothing (`alter default privileges`), so a migration that adds
+a user-facing table must `grant` the minimum to `authenticated` explicitly, enable RLS with policies, and
+add a case to `supabase/tests/database/security.test.sql`.
