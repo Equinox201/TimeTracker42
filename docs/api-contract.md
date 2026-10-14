@@ -10,6 +10,7 @@ and safe; the reason is in the structured logs (see the [runbook](runbook.md)).
 | `forty-two-oauth-callback` | `GET` | no | 42 redirect |
 | `auth-exchange` | `POST` | no | Frontend callback page |
 | `forty-two-sync-manual` | `POST` | yes | Frontend, signed in |
+| `delete-account` | `POST` | yes | Frontend, Settings |
 
 ## `GET /forty-two-oauth-start`
 
@@ -145,3 +146,36 @@ Errors (JSON `{ "error": "..." }`):
 | `502` | `Could not fetch 42 locations.` | Upstream error |
 | `504` | `42 did not respond in time. Please try again.` | Upstream timeout after retries |
 | `500` | `Could not save attendance.` and similar | Database failure; the run is recorded as failed |
+
+## `POST /delete-account`
+
+Permanently deletes the signed-in user and everything stored for them. Every user-owned table
+references `auth.users` with `ON DELETE CASCADE`, so removing the auth user removes the profile, 42
+tokens, attendance, sessions, goals, deadlines, plans, sync runs and pending exchange codes in one step.
+Nothing is changed on 42.
+
+Headers:
+
+```text
+Authorization: Bearer <supabase_access_token>
+Content-Type: application/json
+```
+
+Request (the exact word is required):
+
+```json
+{
+  "confirm": "DELETE"
+}
+```
+
+Response:
+
+```json
+{
+  "deleted": true
+}
+```
+
+Errors (JSON `{ "error": "..." }`): `400` `Type DELETE to confirm.`, `401` `Not authenticated.`, `403`
+`Origin not allowed.`, `405`, `500` `Could not delete your data. Please try again.`
