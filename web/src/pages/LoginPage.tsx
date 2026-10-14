@@ -2,11 +2,15 @@ import { FormEvent, useState } from "react";
 
 import { enterDemoMode } from "../demo/demoMode";
 import { functionsBaseUrl } from "../lib/functionsUrl";
+import { beginLoginBinding } from "../lib/loginBinding";
 import { supabase } from "../lib/supabase";
 
-function fortyTwoLoginUrl(): string {
+function fortyTwoLoginUrl(binding: string | null): string {
   const url = new URL(`${functionsBaseUrl()}/forty-two-oauth-start`);
   url.searchParams.set("redirect_to", `${window.location.origin}/auth/callback`);
+  if (binding) {
+    url.searchParams.set("binding", binding);
+  }
   return url.toString();
 }
 
@@ -48,8 +52,10 @@ export function LoginPage() {
     setSuccessMessage(`Magic link sent to ${nextEmail}.`);
   };
 
-  const continueWithFortyTwo = () => {
-    window.location.assign(fortyTwoLoginUrl());
+  const continueWithFortyTwo = async () => {
+    // Ties this login to this browser: only a hash of the verifier leaves the page.
+    const binding = await beginLoginBinding();
+    window.location.assign(fortyTwoLoginUrl(binding));
   };
 
   const tryDemo = () => {

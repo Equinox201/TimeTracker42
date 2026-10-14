@@ -3,6 +3,7 @@ import type { Session as SupabaseSession, User as SupabaseUser } from "@supabase
 
 import { DEMO_USER, exitDemoMode, isDemoMode } from "../demo/demoMode";
 import { functionsBaseUrl } from "./functionsUrl";
+import { clearLoginVerifier, peekLoginVerifier } from "./loginBinding";
 import { shareAttempt } from "./shareAttempt";
 import { supabase } from "./supabase";
 
@@ -104,7 +105,7 @@ async function exchangeCodeForTokenHash(exchangeCode: string): Promise<string> {
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ exchange_code: exchangeCode })
+    body: JSON.stringify({ exchange_code: exchangeCode, verifier: peekLoginVerifier() ?? undefined })
   });
 
   if (!response.ok) {
@@ -116,6 +117,8 @@ async function exchangeCodeForTokenHash(exchangeCode: string): Promise<string> {
     throw new Error("Could not complete 42 sign-in. Please try again.");
   }
 
+  // The verifier has done its job; do not leave it behind.
+  clearLoginVerifier();
   return body.token_hash;
 }
 

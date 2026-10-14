@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "supabase";
 
+import { randomToken, sha256Hex } from "../_shared/crypto.ts";
 import { createLogger, errorMessage, type Logger } from "../_shared/log.ts";
 
 const FORTY_TWO_TOKEN_URL = "https://api.intra.42.fr/oauth/token";
@@ -47,30 +48,6 @@ function requiredEnv(name: string): string {
   return value;
 }
 
-function base64Url(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return btoa(binary)
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replaceAll("=", "");
-}
-
-function generateExchangeCode(): string {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return base64Url(bytes);
-}
-
-async function sha256Hex(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
-
 function defaultCallbackUrl(appOrigin: string): string {
   return new URL("/auth/callback", appOrigin).toString();
 }
@@ -87,11 +64,16 @@ function redirectWithParam(target: string, key: string, value: string): Response
   });
 }
 
+type ConsumedOAuthState = {
+  redirectTo: string;
+  bindingHash: string | null;
+};
+
 async function consumeOAuthState(
   supabase: SupabaseAdminClient,
   state: string,
   nowIso: string
-): Promise<string | null> {
+): Promise<ConsumedOAuthState | null> {
   const stateHash = await sha256Hex(state);
 
   // The raw OAuth state is never stored. This single UPDATE both validates and
@@ -102,14 +84,14 @@ async function consumeOAuthState(
     .eq("state_hash", stateHash)
     .is("used_at", null)
     .gt("expires_at", nowIso)
-    .select("redirect_to")
+    .select("redirect_to,binding_hash")
     .maybeSingle();
 
   if (error || !data?.redirect_to) {
     return null;
   }
 
-  return data.redirect_to;
+  return { redirectTo: data.redirect_to, bindingHash: data.binding_hash ?? null };
 }
 
 async function exchangeFortyTwoCode(
@@ -324,9 +306,10 @@ async function upsertFortyTwoTokens(
 
 async function createAuthExchangeCode(
   supabase: SupabaseAdminClient,
-  userId: string
+  userId: string,
+  bindingHash: string | null
 ): Promise<string> {
-  const exchangeCode = generateExchangeCode();
+  const exchangeCode = randomToken();
   const codeHash = await sha256Hex(exchangeCode);
   const expiresAt = new Date(Date.now() + EXCHANGE_CODE_TTL_MS).toISOString();
 
@@ -335,6 +318,8 @@ async function createAuthExchangeCode(
   const { error } = await supabase.from("auth_exchange_codes").insert({
     code_hash: codeHash,
     user_id: userId,
+    // Copied from the login transaction; auth-exchange requires the matching verifier.
+    binding_hash: bindingHash,
     expires_at: expiresAt,
     used_at: null
   });
@@ -410,11 +395,12 @@ Deno.serve(async (req) => {
   });
 
   const nowIso = new Date().toISOString();
-  const redirectTo = await consumeOAuthState(supabase, state, nowIso);
-  if (!redirectTo) {
+  const consumedState = await consumeOAuthState(supabase, state, nowIso);
+  if (!consumedState) {
     log.warn("invalid_state");
     return redirectWithParam(fallbackRedirectTo, "error", "invalid_state");
   }
+  const { redirectTo, bindingHash } = consumedState;
 
   if (requestUrl.searchParams.get("error")) {
     log.info("forty_two_denied", { forty_two_error: requestUrl.searchParams.get("error") });
@@ -456,7 +442,7 @@ Deno.serve(async (req) => {
     await upsertProfile(supabase, userId, fortyTwoProfile, writeNowIso);
     await upsertFortyTwoTokens(supabase, userId, token, writeNowIso);
 
-    const exchangeCode = await createAuthExchangeCode(supabase, userId);
+    const exchangeCode = await createAuthExchangeCode(supabase, userId, bindingHash);
     log.info("login_succeeded", {
       forty_two_user_id: fortyTwoProfile.id,
       duration_ms: Date.now() - startedAt

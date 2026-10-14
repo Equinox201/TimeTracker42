@@ -1,5 +1,7 @@
 import { createClient, type SupabaseClient } from "supabase";
 
+import { bindingHashFor, bindingRequired, isVerifier } from "../_shared/binding.ts";
+import { sha256Hex } from "../_shared/crypto.ts";
 import { createLogger, errorMessage } from "../_shared/log.ts";
 
 const corsMethods = "POST, OPTIONS";
@@ -9,6 +11,13 @@ type SupabaseAdminClient = SupabaseClient;
 
 type ExchangeRequestBody = {
   exchange_code?: unknown;
+  verifier?: unknown;
+};
+
+type ExchangeRequest = {
+  exchangeCode: string;
+  // Present when the browser started the login with a binding; null for legacy clients.
+  verifier: string | null;
 };
 
 type GenerateLinkData = {
@@ -54,14 +63,7 @@ function originAllowed(req: Request, allowedOrigin: string): boolean {
   return !origin || origin === allowedOrigin;
 }
 
-async function sha256Hex(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-async function readExchangeCode(req: Request): Promise<string | null> {
+async function readExchangeRequest(req: Request): Promise<ExchangeRequest | null> {
   let body: ExchangeRequestBody;
 
   try {
@@ -79,26 +81,36 @@ async function readExchangeCode(req: Request): Promise<string | null> {
     return null;
   }
 
-  return exchangeCode;
+  if (body.verifier !== undefined && body.verifier !== null && !isVerifier(body.verifier)) {
+    return null;
+  }
+
+  return { exchangeCode, verifier: typeof body.verifier === "string" ? body.verifier : null };
 }
 
 async function consumeExchangeCode(
   supabase: SupabaseAdminClient,
-  exchangeCode: string,
+  request: ExchangeRequest,
   nowIso: string
 ): Promise<string | null> {
-  const codeHash = await sha256Hex(exchangeCode);
+  const codeHash = await sha256Hex(request.exchangeCode);
 
   // The raw exchange code is never stored. This single conditional UPDATE both
   // validates and consumes the hashed code, preventing expired or replayed use.
-  const { data, error } = await supabase
+  // The binding check is part of the same UPDATE: a wrong verifier matches no row, so it
+  // neither redeems nor burns the code, and there is no read-then-write race.
+  let query = supabase
     .from("auth_exchange_codes")
     .update({ used_at: nowIso })
     .eq("code_hash", codeHash)
     .is("used_at", null)
-    .gt("expires_at", nowIso)
-    .select("user_id")
-    .maybeSingle();
+    .gt("expires_at", nowIso);
+
+  query = request.verifier
+    ? query.eq("binding_hash", await bindingHashFor(request.verifier))
+    : query.is("binding_hash", null);
+
+  const { data, error } = await query.select("user_id").maybeSingle();
 
   if (error || !data?.user_id) {
     return null;
@@ -166,10 +178,15 @@ Deno.serve(async (req) => {
     return jsonResponse(allowedOrigin, { error: "Method not allowed." }, 405);
   }
 
-  const exchangeCode = await readExchangeCode(req);
-  if (!exchangeCode) {
+  const exchangeRequest = await readExchangeRequest(req);
+  if (!exchangeRequest) {
     log.warn("malformed_exchange_code");
     return jsonResponse(allowedOrigin, { error: "Invalid exchange code." }, 400);
+  }
+
+  if (!exchangeRequest.verifier && bindingRequired(Deno.env.get("REQUIRE_LOGIN_BINDING"))) {
+    log.warn("verifier_missing");
+    return jsonResponse(allowedOrigin, { error: "Invalid or expired exchange code." }, 400);
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
@@ -179,10 +196,11 @@ Deno.serve(async (req) => {
     }
   });
 
-  const userId = await consumeExchangeCode(supabase, exchangeCode, new Date().toISOString());
+  const userId = await consumeExchangeCode(supabase, exchangeRequest, new Date().toISOString());
   if (!userId) {
-    // Expected when a client replays a single-use code; useful to spot duplicate submissions.
-    log.warn("exchange_code_rejected");
+    // Expired, replayed, or presented without the matching verifier. The cases are
+    // deliberately indistinguishable to the caller.
+    log.warn("exchange_code_rejected", { has_verifier: exchangeRequest.verifier !== null });
     return jsonResponse(allowedOrigin, { error: "Invalid or expired exchange code." }, 400);
   }
 
