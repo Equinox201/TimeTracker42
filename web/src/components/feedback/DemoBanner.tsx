@@ -1,4 +1,6 @@
 import { exitDemoMode, isDemoMode } from "../../demo/demoMode";
+import { Banner } from "../ui/Banner";
+import { Button } from "../ui/Button";
 
 export function DemoBanner() {
   if (!isDemoMode()) {
@@ -11,18 +13,16 @@ export function DemoBanner() {
   };
 
   return (
-    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-tt42-teal/40 bg-tt42-teal/10 px-3 py-2 text-sm text-tt42-text">
-      <span>
-        <strong className="font-semibold">Demo mode.</strong> Sample data for John Doe; changes reset
-        on reload.
-      </span>
-      <button
-        type="button"
-        onClick={exitDemo}
-        className="rounded-lg border border-tt42-border bg-tt42-surface2 px-3 py-1 text-xs font-medium"
-      >
-        Exit demo
-      </button>
-    </div>
+    <Banner tone="success">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span>
+          <strong className="font-semibold">Demo mode.</strong>{" "}
+          <span className="text-tt42-muted">Sample data for John Doe; changes reset on reload.</span>
+        </span>
+        <Button variant="secondary" size="sm" onClick={exitDemo}>
+          Exit demo
+        </Button>
+      </div>
+    </Banner>
   );
 }

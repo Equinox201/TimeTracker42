@@ -14,6 +14,9 @@ import {
 import { useAuth } from "../lib/auth";
 import { deltaHoursReadable, hoursToReadable, progressPercent, shortDateTime } from "../lib/formatters";
 import { endOfSingaporeMonthKey, singaporeMonthKey, startOfSingaporeMonthKey } from "../lib/singaporeDate";
+import { Card } from "../components/ui/Card";
+import { buttonClass } from "../components/ui/Button";
+import { Banner } from "../components/ui/Banner";
 
 function errorText(error: unknown): string {
   if (error instanceof Error) {
@@ -30,7 +33,7 @@ function statusTag(summary: DashboardSummary): { text: string; className: string
   if (summary.hoursLeftToMonthlyGoal <= 0) {
     return {
       text: "Exceeded",
-      className: "border-tt42-magenta/40 bg-tt42-magenta/15 text-tt42-text"
+      className: "bg-tt42-accent/15 text-tt42-accent"
     };
   }
 
@@ -41,13 +44,13 @@ function statusTag(summary: DashboardSummary): { text: string; className: string
   if (activePace <= summary.dailyGoalHours) {
     return {
       text: "On Track",
-      className: "border-tt42-mint/40 bg-tt42-mint/15 text-tt42-text"
+      className: "bg-tt42-accent/15 text-tt42-accent"
     };
   }
 
   return {
     text: "Behind Pace",
-    className: "border-amber-400/40 bg-amber-400/15 text-tt42-text"
+    className: "bg-tt42-warn/15 text-tt42-warn"
   };
 }
 
@@ -117,21 +120,21 @@ export function MainPage() {
             label: "Month",
             valueHours: summary.hoursMonth,
             goalHours: summary.monthlyGoalHours,
-            tone: "magenta"
+            tone: "strong"
           },
           {
             id: "week",
             label: "Week",
             valueHours: summary.hoursWeek,
             goalHours: summary.weeklyGoalHours,
-            tone: "mint"
+            tone: "medium"
           },
           {
             id: "day",
             label: "Day",
             valueHours: summary.hoursToday,
             goalHours: summary.dailyGoalHours,
-            tone: "teal"
+            tone: "soft"
           }
         ];
 
@@ -150,7 +153,7 @@ export function MainPage() {
         <div className="h-80 animate-pulse rounded-card border border-tt42-border bg-tt42-surface2" />
         <div className="grid grid-cols-2 gap-3">
           {Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="h-24 animate-pulse rounded-2xl border border-tt42-border bg-tt42-surface2" />
+            <div key={index} className="h-24 animate-pulse rounded-2xl bg-tt42-surface2" />
           ))}
         </div>
       </section>
@@ -160,19 +163,19 @@ export function MainPage() {
   if (!summary) {
     return (
       <section className="space-y-4 pb-2">
-        <article className="rounded-card border border-tt42-danger/40 bg-tt42-danger/10 p-5 shadow-soft">
+        <Card>
           <h2 className="text-lg font-semibold">Unable to load dashboard</h2>
           <p className="mt-2 text-sm text-tt42-muted">{errorText(displayError)}</p>
           <button
             type="button"
-            className="mt-4 rounded-lg border border-tt42-border bg-tt42-surface px-3 py-2 text-sm"
+            className={buttonClass({ variant: "secondary", size: "md", className: "mt-4" })}
             onClick={() => {
               void dashboardQuery.refetch();
             }}
           >
             Try again
           </button>
-        </article>
+        </Card>
       </section>
     );
   }
@@ -181,13 +184,13 @@ export function MainPage() {
 
   return (
     <section className="space-y-4 pb-2">
-      <article className="rounded-card border border-tt42-border bg-gradient-to-b from-tt42-surface2/70 to-tt42-surface p-4 shadow-soft">
+      <Card padding="sm">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-[0.16em] text-tt42-muted">Main</p>
             <h2 className="text-xl font-semibold">Attendance Progress</h2>
           </div>
-          <span className={`rounded-full border px-2 py-1 text-xs font-medium ${status.className}`}>
+          <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${status.className}`}>
             {status.text}
           </span>
         </div>
@@ -200,7 +203,7 @@ export function MainPage() {
               syncMutation.mutate();
             }}
             disabled={isRefreshing || syncMutation.isPending}
-            className="rounded-lg border border-tt42-magenta/40 bg-tt42-magenta/15 px-3 py-2 text-xs font-medium text-tt42-text disabled:opacity-60"
+            className={buttonClass({ variant: "primary", size: "sm" })}
           >
             {syncMutation.isPending ? "Syncing..." : "Sync Now"}
           </button>
@@ -216,23 +219,23 @@ export function MainPage() {
         />
 
         {syncMutation.data ? (
-          <div className="mt-3 rounded-xl border border-tt42-mint/35 bg-tt42-mint/10 px-3 py-2 text-sm text-tt42-text">
+          <Banner tone="success" className="mt-3">
             {syncSuccessText(syncMutation.data)}
-          </div>
+          </Banner>
         ) : null}
 
         {syncMutation.error ? (
-          <div className="mt-3 rounded-xl border border-tt42-danger/40 bg-tt42-danger/10 px-3 py-2 text-sm text-tt42-text">
+          <Banner tone="danger" className="mt-3">
             {errorText(syncMutation.error)}
-          </div>
+          </Banner>
         ) : null}
 
         {summary.todayIsLive ? (
-          <div className="mt-3 rounded-xl border border-tt42-teal/35 bg-tt42-teal/10 px-3 py-2 text-sm text-tt42-text">
+          <Banner tone="success" className="mt-3">
             Today includes a campus session that was still open at the last sync
             {summary.liveCheckedAt ? ` (${shortDateTime(summary.liveCheckedAt)})` : ""}. Progress is
             provisional until the session closes and you sync again.
-          </div>
+          </Banner>
         ) : null}
 
         <div className="mt-4">
@@ -241,12 +244,12 @@ export function MainPage() {
             centerValue={progressPercent(summary.hoursMonth, summary.monthlyGoalHours)}
           />
         </div>
-      </article>
+      </Card>
 
       {displayError && (
-        <article className="rounded-xl border border-tt42-danger/40 bg-tt42-danger/10 px-3 py-2 text-sm text-tt42-text">
+        <Banner tone="danger">
           {errorText(displayError)}
-        </article>
+        </Banner>
       )}
 
       <div className="grid grid-cols-2 gap-3">
@@ -258,19 +261,16 @@ export function MainPage() {
               ? `Live now • finalized ${hoursToReadable(summary.hoursTodayFinalized)}`
               : `Goal ${hoursToReadable(summary.dailyGoalHours)}`
           }
-          tint="teal"
         />
         <MetricCard
           title="This Week"
           value={hoursToReadable(summary.hoursWeek)}
           subtitle={`Goal ${hoursToReadable(summary.weeklyGoalHours)}`}
-          tint="mint"
         />
         <MetricCard
           title="Hours Left"
           value={hoursToReadable(Math.max(summary.hoursLeftToMonthlyGoal, 0))}
           subtitle={`Month goal ${hoursToReadable(summary.monthlyGoalHours)}`}
-          tint="magenta"
         />
         <MetricCard
           title="Required Pace"
@@ -298,10 +298,10 @@ export function MainPage() {
           days={monthHistory.days}
         />
       ) : (
-        <article className="rounded-card border border-tt42-border bg-tt42-surface p-5 shadow-soft">
+        <Card>
           <h3 className="text-lg font-semibold">Monthly Attendance Calendar</h3>
           <p className="mt-2 text-sm text-tt42-muted">{monthHistoryQuery.isPending ? "Loading..." : "Unavailable."}</p>
-        </article>
+        </Card>
       )}
 
       <RangeSummary summary={summary} monthHistory={monthHistory} />
@@ -315,7 +315,7 @@ function RangeSummary({ summary, monthHistory }: { summary: DashboardSummary; mo
     : "Current month range not loaded";
 
   return (
-    <article className="rounded-card border border-tt42-border bg-tt42-surface p-4 shadow-soft">
+    <Card padding="sm">
       <p className="text-xs uppercase tracking-[0.16em] text-tt42-muted">Snapshot</p>
       <h3 className="mt-1 text-lg font-semibold">Current Month</h3>
       <div className="mt-3 grid grid-cols-1 gap-2 text-sm text-tt42-muted sm:grid-cols-2">
@@ -324,6 +324,6 @@ function RangeSummary({ summary, monthHistory }: { summary: DashboardSummary; mo
         <p>Days in range: {monthHistory?.totalDays ?? 0}</p>
         <p>Pace mode: {useWeekdaysPaceMode(summary.paceMode) ? "Weekdays" : "All days"}</p>
       </div>
-    </article>
+    </Card>
   );
 }

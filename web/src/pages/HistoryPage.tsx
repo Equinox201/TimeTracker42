@@ -30,6 +30,9 @@ import {
   singaporeMonthShortLabel,
   singaporeWeekStartKeyFromDayKey
 } from "../lib/singaporeDate";
+import { Card } from "../components/ui/Card";
+import { buttonClass } from "../components/ui/Button";
+import { Banner } from "../components/ui/Banner";
 
 type MonthlyPoint = {
   monthKey: string;
@@ -191,26 +194,26 @@ export function HistoryPage() {
   if (!history) {
     return (
       <section className="space-y-4 pb-2">
-        <article className="rounded-card border border-tt42-danger/40 bg-tt42-danger/10 p-5 shadow-soft">
+        <Card>
           <h2 className="text-lg font-semibold">Unable to load historic data</h2>
           <p className="mt-2 text-sm text-tt42-muted">{errorText(pageError)}</p>
           <button
             type="button"
-            className="mt-4 rounded-lg border border-tt42-border bg-tt42-surface px-3 py-2 text-sm"
+            className={buttonClass({ variant: "secondary", size: "md", className: "mt-4" })}
             onClick={() => {
               void historyQuery.refetch();
             }}
           >
             Try again
           </button>
-        </article>
+        </Card>
       </section>
     );
   }
 
   return (
     <section className="space-y-4 pb-2">
-      <article className="rounded-card border border-tt42-border bg-gradient-to-b from-tt42-surface2/70 to-tt42-surface p-4 shadow-soft">
+      <Card padding="sm">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-[0.16em] text-tt42-muted">History</p>
@@ -224,7 +227,7 @@ export function HistoryPage() {
                 void Promise.all([historyQuery.refetch(), dashboardQuery.refetch()]);
               }}
               disabled={isFetching || syncMutation.isPending}
-              className="rounded-lg border border-tt42-border bg-tt42-surface px-3 py-2 text-xs font-medium text-tt42-text disabled:opacity-60"
+              className={buttonClass({ variant: "secondary", size: "sm" })}
             >
               {isFetching ? "Refreshing..." : "Refresh"}
             </button>
@@ -235,7 +238,7 @@ export function HistoryPage() {
                 syncMutation.mutate();
               }}
               disabled={isFetching || syncMutation.isPending}
-              className="rounded-lg border border-tt42-magenta/40 bg-tt42-magenta/15 px-3 py-2 text-xs font-medium text-tt42-text disabled:opacity-60"
+              className={buttonClass({ variant: "primary", size: "sm" })}
             >
               {syncMutation.isPending ? "Syncing..." : "Sync Now"}
             </button>
@@ -252,19 +255,19 @@ export function HistoryPage() {
         />
 
         {history.todayIsLive ? (
-          <div className="mt-3 rounded-xl border border-tt42-teal/35 bg-tt42-teal/10 px-3 py-2 text-sm text-tt42-text">
+          <Banner tone="success" className="mt-3">
             Today’s calendar entry includes live campus time and may increase until your current session closes.
-          </div>
+          </Banner>
         ) : null}
-      </article>
+      </Card>
 
       {pageError && (
-        <article className="rounded-xl border border-tt42-danger/40 bg-tt42-danger/10 px-3 py-2 text-sm text-tt42-text">
+        <Banner tone="danger">
           {errorText(pageError)}
-        </article>
+        </Banner>
       )}
 
-      <article className="rounded-card border border-tt42-border bg-tt42-surface p-4 shadow-soft">
+      <Card padding="sm">
         <header className="mb-3 flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.16em] text-tt42-muted">Monthly Totals</p>
@@ -277,8 +280,8 @@ export function HistoryPage() {
             <BarChart data={chartRows} margin={{ top: 6, right: 6, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="tt42HistoryBars" x1="0" y1="1" x2="0" y2="0">
-                  <stop offset="0%" stopColor="var(--tt42-teal)" stopOpacity={0.85} />
-                  <stop offset="100%" stopColor="var(--tt42-mint)" stopOpacity={0.95} />
+                  <stop offset="0%" stopColor="var(--tt42-accent)" stopOpacity={0.85} />
+                  <stop offset="100%" stopColor="var(--tt42-accent)" stopOpacity={0.95} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--tt42-border)" strokeOpacity={0.35} vertical={false} />
@@ -291,7 +294,7 @@ export function HistoryPage() {
                 tickFormatter={(value) => `${value}h`}
               />
               <Tooltip
-                cursor={{ fill: "rgba(17, 167, 196, 0.08)" }}
+                cursor={{ fill: "color-mix(in srgb, var(--tt42-accent) 10%, transparent)" }}
                 contentStyle={{
                   background: "var(--tt42-surface)",
                   border: "1px solid var(--tt42-border)",
@@ -304,16 +307,16 @@ export function HistoryPage() {
                 {chartRows.map((row) => (
                   <Cell
                     key={row.monthKey}
-                    fill={row.monthKey === selectedMonthKey ? "var(--tt42-magenta)" : "url(#tt42HistoryBars)"}
+                    fill={row.monthKey === selectedMonthKey ? "var(--tt42-accent)" : "url(#tt42HistoryBars)"}
                   />
                 ))}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
-      </article>
+      </Card>
 
-      <article className="rounded-card border border-tt42-border bg-tt42-surface p-4 shadow-soft">
+      <Card padding="sm">
         <p className="text-xs uppercase tracking-[0.16em] text-tt42-muted">Range Summary</p>
         <h3 className="mt-1 text-lg font-semibold text-tt42-text">
           {monthlyPoints[0] ? monthlyPoints[0].monthLong : "-"}
@@ -327,9 +330,9 @@ export function HistoryPage() {
             Best month: {bestMonth ? `${bestMonth.monthLong} (${hoursToReadable(bestMonth.hours)})` : "-"}
           </p>
         </div>
-      </article>
+      </Card>
 
-      <article className="rounded-card border border-tt42-border bg-tt42-surface p-4 shadow-soft">
+      <Card padding="sm">
         <p className="text-xs uppercase tracking-[0.16em] text-tt42-muted">Month Selection</p>
         <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
           {monthlyPoints.map((point) => {
@@ -342,7 +345,7 @@ export function HistoryPage() {
                 className={[
                   "shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium",
                   active
-                    ? "border-tt42-magenta/60 bg-tt42-magenta/15 text-tt42-text"
+                    ? "border-tt42-accent/60 bg-tt42-accent/15 text-tt42-text"
                     : "border-tt42-border bg-tt42-surface2 text-tt42-muted"
                 ].join(" ")}
               >
@@ -351,7 +354,7 @@ export function HistoryPage() {
             );
           })}
         </div>
-      </article>
+      </Card>
 
       <AttendanceMonthCalendar
         month={singaporeCalendarMonthDate(selectedMonthKey)}
@@ -361,7 +364,7 @@ export function HistoryPage() {
         days={selectedMonthDays}
       />
 
-      <article className="rounded-card border border-tt42-border bg-tt42-surface p-4 shadow-soft">
+      <Card padding="sm">
         <p className="text-xs uppercase tracking-[0.16em] text-tt42-muted">Month Summary</p>
         <h3 className="mt-1 text-lg font-semibold text-tt42-text">{singaporeMonthLongLabel(selectedMonthKey)}</h3>
         <div className="mt-3 grid grid-cols-1 gap-2 text-sm text-tt42-muted sm:grid-cols-2">
@@ -370,7 +373,7 @@ export function HistoryPage() {
           <p>Goal-achieved days: {selectedMonthGoalDays}</p>
           <p>Weekly goals hit: {selectedMonthWeekHits}</p>
         </div>
-      </article>
+      </Card>
     </section>
   );
 }

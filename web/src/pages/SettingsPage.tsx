@@ -25,6 +25,9 @@ import {
 } from "../lib/goalMath";
 import { singaporeDayKey, startOfSingaporeMonthKey } from "../lib/singaporeDate";
 import { useTheme } from "../lib/theme";
+import { Card } from "../components/ui/Card";
+import { buttonClass } from "../components/ui/Button";
+import { Banner } from "../components/ui/Banner";
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -243,7 +246,7 @@ export function SettingsPage() {
 
   return (
     <section className="space-y-4 pb-2">
-      <article className="rounded-card border border-tt42-border bg-tt42-surface p-5 shadow-soft">
+      <Card>
         <h2 className="text-lg font-semibold">Settings</h2>
         <p className="mt-2 text-sm text-tt42-muted">Appearance, account, goals, pace mode, and deadline planning.</p>
 
@@ -256,7 +259,7 @@ export function SettingsPage() {
               className={[
                 "h-10 rounded-lg border text-sm capitalize",
                 preference === mode
-                  ? "border-tt42-magenta bg-tt42-magenta/15"
+                  ? "border-tt42-accent bg-tt42-accent/15"
                   : "border-tt42-border bg-tt42-surface2 text-tt42-muted"
               ].join(" ")}
             >
@@ -265,21 +268,21 @@ export function SettingsPage() {
           ))}
         </div>
 
-        <div className="mt-5 rounded-xl border border-tt42-border bg-tt42-surface2 p-3">
+        <div className="mt-5 rounded-xl bg-tt42-surface2 p-3">
           <p className="text-xs uppercase tracking-[0.15em] text-tt42-muted">Account</p>
           <p className="mt-2 text-sm font-medium">{session?.user.displayName ?? "Unknown User"}</p>
           <p className="text-xs text-tt42-muted">@{session?.user.login ?? "unknown"}</p>
           <button
             type="button"
             onClick={() => void signOut()}
-            className="mt-3 h-10 rounded-lg border border-tt42-danger/40 bg-tt42-danger/10 px-3 text-sm text-tt42-danger"
+            className={buttonClass({ variant: "danger", size: "sm", className: "mt-3" })}
           >
             Sign out
           </button>
         </div>
-      </article>
+      </Card>
 
-      <article className="rounded-card border border-tt42-border bg-tt42-surface p-5 shadow-soft">
+      <Card>
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-[0.15em] text-tt42-muted">Goals</p>
@@ -328,7 +331,7 @@ export function SettingsPage() {
           </label>
         </div>
 
-        <div className="mt-4 rounded-xl border border-tt42-border bg-tt42-surface2 p-3">
+        <div className="mt-4 rounded-xl bg-tt42-surface2 p-3">
           <div className="flex items-center justify-between gap-3">
             <label className="text-sm font-medium">Use weekdays only for pace</label>
             <button
@@ -345,7 +348,7 @@ export function SettingsPage() {
               }
               className={[
                 "inline-flex h-7 w-14 items-center rounded-full border px-1 transition",
-                weekdaysOnly ? "border-tt42-mint bg-tt42-mint/25" : "border-tt42-border bg-tt42-surface"
+                weekdaysOnly ? "border-tt42-accent bg-tt42-accent/25" : "border-tt42-border bg-tt42-surface"
               ].join(" ")}
             >
               <span
@@ -374,14 +377,14 @@ export function SettingsPage() {
                     clamp(Number(event.target.value), 1, 7)
                   )
                 }
-                className="w-full accent-tt42-magenta"
+                className="w-full accent-tt42-accent"
               />
               <div className="mt-1 text-sm text-tt42-muted">{daysPerWeek} day(s) / week</div>
             </label>
           </div>
         </div>
 
-        <div className="mt-4 rounded-xl border border-tt42-border bg-tt42-surface2 p-3">
+        <div className="mt-4 rounded-xl bg-tt42-surface2 p-3">
           <p className="text-xs uppercase tracking-[0.15em] text-tt42-muted">Recalculated Guidance</p>
           <div className="mt-2 grid grid-cols-1 gap-2 text-sm text-tt42-muted sm:grid-cols-2">
             <p>Target days left this month: {recommendation.targetDays}</p>
@@ -398,7 +401,7 @@ export function SettingsPage() {
           <div className="mt-3 flex flex-wrap gap-2">
             <Link
               to="/app/plan"
-              className="rounded-lg border border-tt42-border bg-tt42-surface px-3 py-2 text-xs font-medium"
+              className={buttonClass({ variant: "secondary", size: "sm" })}
             >
               Open the planner
             </Link>
@@ -406,9 +409,9 @@ export function SettingsPage() {
         </div>
 
         {settingsError && (
-          <p className="mt-3 rounded-lg border border-tt42-danger/40 bg-tt42-danger/10 px-3 py-2 text-sm text-tt42-text">
+          <Banner tone="danger" className="mt-3">
             {errorText(settingsError)}
-          </p>
+          </Banner>
         )}
 
         <div className="mt-4 flex items-center justify-end gap-2">
@@ -426,7 +429,7 @@ export function SettingsPage() {
               setDaysPerWeek(payload.daysPerWeek);
               setGoalInputMode("monthly");
             }}
-            className="h-10 rounded-lg border border-tt42-border bg-tt42-surface px-3 text-sm"
+            className={buttonClass({ variant: "secondary", size: "md" })}
           >
             Reset
           </button>
@@ -438,14 +441,14 @@ export function SettingsPage() {
               saveGoalsMutation.mutate();
             }}
             disabled={saveGoalsMutation.isPending || goalsQuery.isPending}
-            className="h-10 rounded-lg border border-tt42-magenta/40 bg-tt42-magenta/15 px-4 text-sm font-medium disabled:opacity-60"
+            className={buttonClass({ variant: "primary", size: "md" })}
           >
             {saveGoalsMutation.isPending ? "Saving..." : "Save Settings"}
           </button>
         </div>
-      </article>
+      </Card>
 
-      <article className="rounded-card border border-tt42-border bg-tt42-surface p-5 shadow-soft">
+      <Card>
         <p className="text-xs uppercase tracking-[0.15em] text-tt42-muted">Deadlines</p>
         <h3 className="text-lg font-semibold">Project Deadline Planning</h3>
 
@@ -515,23 +518,23 @@ export function SettingsPage() {
               createDeadlineMutation.mutate();
             }}
             disabled={createDeadlineMutation.isPending}
-            className="h-10 rounded-lg border border-tt42-mint/40 bg-tt42-mint/20 px-4 text-sm font-medium disabled:opacity-60"
+            className={buttonClass({ variant: "primary", size: "md" })}
           >
             {createDeadlineMutation.isPending ? "Adding..." : "Add Deadline"}
           </button>
         </div>
 
         {deadlineError && (
-          <p className="mt-3 rounded-lg border border-tt42-danger/40 bg-tt42-danger/10 px-3 py-2 text-sm text-tt42-text">
+          <Banner tone="danger" className="mt-3">
             {errorText(deadlineError)}
-          </p>
+          </Banner>
         )}
 
         <div className="mt-4 space-y-3">
           {deadlinesQuery.isPending ? (
-            <div className="rounded-xl border border-tt42-border bg-tt42-surface2 px-3 py-3 text-sm text-tt42-muted">Loading deadlines...</div>
+            <div className="rounded-xl bg-tt42-surface2 px-3 py-3 text-sm text-tt42-muted">Loading deadlines...</div>
           ) : (deadlinesQuery.data ?? []).length === 0 ? (
-            <div className="rounded-xl border border-tt42-border bg-tt42-surface2 px-3 py-3 text-sm text-tt42-muted">
+            <div className="rounded-xl bg-tt42-surface2 px-3 py-3 text-sm text-tt42-muted">
               No deadlines yet.
             </div>
           ) : (
@@ -545,7 +548,7 @@ export function SettingsPage() {
                 weekdaysOnly
               });
               return (
-                <article key={deadline.id} className="rounded-xl border border-tt42-border bg-tt42-surface2 p-3">
+                <article key={deadline.id} className="rounded-xl bg-tt42-surface2 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h4 className="text-sm font-semibold">{deadline.title}</h4>
@@ -555,7 +558,7 @@ export function SettingsPage() {
                       className={[
                         "rounded-full border px-2 py-0.5 text-[11px]",
                         deadline.isCompleted
-                          ? "border-tt42-mint/40 bg-tt42-mint/20"
+                          ? "border-tt42-accent/40 bg-tt42-accent/20"
                           : "border-tt42-border bg-tt42-surface"
                       ].join(" ")}
                     >
@@ -585,7 +588,7 @@ export function SettingsPage() {
                         toggleCompleteMutation.mutate(deadline);
                       }}
                       disabled={toggleCompleteMutation.isPending}
-                      className="rounded-lg border border-tt42-border bg-tt42-surface px-3 py-1.5 text-xs"
+                      className={buttonClass({ variant: "secondary", size: "sm" })}
                     >
                       {deadline.isCompleted ? "Mark Open" : "Mark Complete"}
                     </button>
@@ -597,7 +600,7 @@ export function SettingsPage() {
                         deleteDeadlineMutation.mutate(deadline.id);
                       }}
                       disabled={deleteDeadlineMutation.isPending}
-                      className="rounded-lg border border-tt42-danger/40 bg-tt42-danger/10 px-3 py-1.5 text-xs text-tt42-danger"
+                      className={buttonClass({ variant: "danger", size: "sm" })}
                     >
                       Delete
                     </button>
@@ -607,7 +610,7 @@ export function SettingsPage() {
             })
           )}
         </div>
-      </article>
+      </Card>
     </section>
   );
 }

@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../lib/auth";
+import { Card } from "../components/ui/Card";
+import { Banner } from "../components/ui/Banner";
+import { buttonClass } from "../components/ui/Button";
 
 export function AuthCallbackPage() {
   const location = useLocation();
@@ -51,27 +54,27 @@ export function AuthCallbackPage() {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-[520px] items-center px-4 py-10">
-      <div className="w-full rounded-card border border-tt42-border bg-tt42-surface p-6 shadow-soft">
+      <Card as="div" padding="none" className="w-full p-6">
         <h1 className="text-2xl font-semibold">Signing you in…</h1>
         <p className="mt-2 text-sm text-tt42-muted">Completing Supabase session setup.</p>
 
         {isLoading ? <p className="mt-4 text-sm text-tt42-muted">Please wait…</p> : null}
 
         {errorMessage ? (
-          <div className="mt-4 rounded-xl border border-tt42-danger/40 bg-tt42-danger/10 p-3 text-sm text-tt42-danger">
+          <Banner tone="danger" className="mt-4">
             {errorMessage}
-          </div>
+          </Banner>
         ) : null}
 
         {errorMessage ? (
           <Link
-            className="mt-6 inline-flex h-11 items-center justify-center rounded-xl border border-tt42-border px-4"
+            className={buttonClass({ variant: "secondary", className: "mt-6 h-11" })}
             to="/login"
           >
             Back to login
           </Link>
         ) : null}
-      </div>
+      </Card>
     </div>
   );
 }
