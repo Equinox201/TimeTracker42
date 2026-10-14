@@ -70,7 +70,8 @@ Deno.test("separate sessions on one day are summed", () => {
 });
 
 Deno.test("a session across Singapore midnight is split between both days", () => {
-  const result = totals([session("2026-10-14T23:00:00", "2026-10-15T01:00:00")]);
+  // "now" must be after the session, otherwise it is (correctly) clipped away.
+  const result = totals([session("2026-10-14T23:00:00", "2026-10-15T01:00:00")], sgt("2026-10-15T12:00:00"));
   assertEquals(secondsOn(result, "2026-10-14"), 3600);
   assertEquals(secondsOn(result, "2026-10-15"), 3600);
 });
@@ -119,8 +120,10 @@ Deno.test("recomputing from the same sessions gives the same totals (repeat sync
     session("2026-10-14T10:00:00", "2026-10-14T12:00:00"),
     session("2026-10-14T23:00:00", "2026-10-15T01:00:00")
   ];
-  assertEquals(totals(sessions), totals([...sessions].reverse()));
-  assertEquals(totals(sessions), totals(sessions));
+  const later = sgt("2026-10-15T12:00:00");
+  assertEquals(secondsOn(totals(sessions, later), "2026-10-15"), 3600);
+  assertEquals(totals(sessions, later), totals([...sessions].reverse(), later));
+  assertEquals(totals(sessions, later), totals(sessions, later));
 });
 
 Deno.test("historical window starts on the first of the month five months back (Singapore)", () => {
