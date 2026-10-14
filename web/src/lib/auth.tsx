@@ -162,18 +162,32 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setStatus("ready");
     };
 
-    const {
-      data: { subscription }
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(adaptSession(nextSession));
-      setStatus("ready");
-    });
+    let unsubscribe = () => {};
+    try {
+      const {
+        data: { subscription }
+      } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+        setSession(adaptSession(nextSession));
+        setStatus("ready");
+      });
+      unsubscribe = () => subscription.unsubscribe();
 
-    void loadSession();
+      loadSession().catch(() => {
+        if (isMounted) {
+          setSession(null);
+          setStatus("ready");
+        }
+      });
+    } catch {
+      // Supabase is not configured (for example a deploy preview). Signed out, so the login
+      // page and demo mode still work instead of the whole app crashing.
+      setSession(null);
+      setStatus("ready");
+    }
 
     return () => {
       isMounted = false;
-      subscription.unsubscribe();
+      unsubscribe();
     };
   }, [isDemo]);
 
