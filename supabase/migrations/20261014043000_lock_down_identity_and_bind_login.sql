@@ -14,6 +14,10 @@ drop policy if exists "Users can update own profile" on public.profiles;
 --    the web app uses. The service role is unaffected.
 revoke all on all tables in schema public from anon, authenticated;
 
+-- The Edge Functions (service role) are the only writers of server-owned tables. Make that
+-- explicit instead of relying on default privileges, which this migration changes below.
+grant all on all tables in schema public to service_role;
+
 grant select on public.profiles to authenticated;
 grant select on public.attendance_daily to authenticated;
 grant select on public.location_sessions to authenticated;
