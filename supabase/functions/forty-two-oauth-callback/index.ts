@@ -37,6 +37,21 @@ type VerifiedFortyTwoProfile = FortyTwoProfile & {
   login: string;
 };
 
+// Structured, secret-free logging: never pass codes, tokens or client secrets here.
+function logEvent(event: string, details: Record<string, unknown> = {}): void {
+  console.error(JSON.stringify({ fn: "forty-two-oauth-callback", event, ...details }));
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (error && typeof error === "object" && "message" in error) {
+    return String((error as { message: unknown }).message);
+  }
+  return String(error);
+}
+
 function requiredEnv(name: string): string {
   const value = Deno.env.get(name);
   if (!value) {
@@ -133,6 +148,9 @@ async function exchangeFortyTwoCode(
   });
 
   if (!response.ok) {
+    // 42 answers with {"error": "invalid_client", "error_description": "..."}; safe to log.
+    const detail = (await response.text()).slice(0, 300);
+    logEvent("token_exchange_rejected", { status: response.status, detail });
     throw new Error("42 token exchange failed");
   }
 
@@ -152,6 +170,7 @@ async function fetchFortyTwoProfile(accessToken: string): Promise<VerifiedFortyT
   });
 
   if (!response.ok) {
+    logEvent("profile_fetch_rejected", { status: response.status });
     throw new Error("42 profile fetch failed");
   }
 
@@ -373,7 +392,8 @@ Deno.serve(async (req) => {
     fortyTwoRedirectUri = requiredEnv("FORTY_TWO_REDIRECT_URI");
     syntheticEmailDomain = requiredEnv("FORTY_TWO_AUTH_EMAIL_DOMAIN");
     appOrigin = requiredEnv("APP_ORIGIN");
-  } catch {
+  } catch (error) {
+    logEvent("config_incomplete", { reason: errorMessage(error) });
     return Response.json(
       { error: "Server configuration is incomplete." },
       {
@@ -400,6 +420,7 @@ Deno.serve(async (req) => {
   const nowIso = new Date().toISOString();
   const redirectTo = await consumeOAuthState(supabase, state, nowIso);
   if (!redirectTo) {
+    logEvent("invalid_state");
     return redirectWithParam(fallbackRedirectTo, "error", "invalid_state");
   }
 
@@ -420,14 +441,16 @@ Deno.serve(async (req) => {
       fortyTwoClientSecret,
       fortyTwoRedirectUri
     );
-  } catch {
+  } catch (error) {
+    logEvent("exchange_failed", { reason: errorMessage(error) });
     return redirectWithParam(redirectTo, "error", "forty_two_exchange_failed");
   }
 
   let fortyTwoProfile: VerifiedFortyTwoProfile;
   try {
     fortyTwoProfile = await fetchFortyTwoProfile(token.access_token);
-  } catch {
+  } catch (error) {
+    logEvent("profile_failed", { reason: errorMessage(error) });
     return redirectWithParam(redirectTo, "error", "forty_two_profile_failed");
   }
 
@@ -440,7 +463,8 @@ Deno.serve(async (req) => {
 
     const exchangeCode = await createAuthExchangeCode(supabase, userId);
     return redirectWithParam(redirectTo, "exchange_code", exchangeCode);
-  } catch {
+  } catch (error) {
+    logEvent("auth_setup_failed", { reason: errorMessage(error) });
     return redirectWithParam(redirectTo, "error", "auth_setup_failed");
   }
 });

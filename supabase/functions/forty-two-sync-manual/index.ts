@@ -256,6 +256,10 @@ async function refreshFortyTwoToken(
   });
 
   if (!response.ok) {
+    const detail = (await response.text()).slice(0, 300);
+    console.error(
+      JSON.stringify({ fn: "forty-two-sync-manual", event: "refresh_rejected", status: response.status, detail })
+    );
     throw new SafeSyncError("42 session expired. Please sign in again.", 401);
   }
 

@@ -117,6 +117,8 @@ async function exchangeCodeForTokenHash(exchangeCode: string): Promise<string> {
   return body.token_hash;
 }
 
+const signInAttempts = new Map<string, Promise<void>>();
+
 export function AuthProvider({ children }: PropsWithChildren) {
   const [status, setStatus] = useState<AuthStatus>("booting");
   const [session, setSession] = useState<SessionPayload | null>(null);
@@ -156,7 +158,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     };
   }, []);
 
-  const completeOAuthSignIn = async (callbackUrl: string) => {
+  const performOAuthSignIn = async (callbackUrl: string) => {
     const { search, hash } = callbackParams(callbackUrl);
     const callbackError = search.get("error_description") ?? hash.get("error_description") ?? search.get("error") ?? hash.get("error");
     if (callbackError) {
@@ -219,6 +221,19 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
 
     throw new Error("Missing Supabase auth callback parameters.");
+  };
+
+  // The exchange code is single-use, but the callback page's effect re-runs whenever this
+  // provider's context value changes (booting -> ready, session set). Share one in-flight
+  // attempt per callback URL so a re-run reuses it instead of replaying a consumed code.
+  const completeOAuthSignIn = (callbackUrl: string): Promise<void> => {
+    const existing = signInAttempts.get(callbackUrl);
+    if (existing) {
+      return existing;
+    }
+    const attempt = performOAuthSignIn(callbackUrl);
+    signInAttempts.set(callbackUrl, attempt);
+    return attempt;
   };
 
   const validAccessToken = async () => {
