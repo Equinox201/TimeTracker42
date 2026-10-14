@@ -229,7 +229,9 @@ export function MainPage() {
 
         {summary.todayIsLive ? (
           <div className="mt-3 rounded-xl border border-tt42-teal/35 bg-tt42-teal/10 px-3 py-2 text-sm text-tt42-text">
-            Today includes a live campus session. Current progress is provisional until the session closes.
+            Today includes a campus session that was still open at the last sync
+            {summary.liveCheckedAt ? ` (${shortDateTime(summary.liveCheckedAt)})` : ""}. Progress is
+            provisional until the session closes and you sync again.
           </div>
         ) : null}
 

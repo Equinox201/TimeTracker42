@@ -41,6 +41,11 @@ describe("buildDemoAttendance", () => {
     expect(weekdayRows / rows.length).toBeGreaterThan(0.8);
   });
 
+  it("marks only today as a live (provisional) row", () => {
+    expect(rows.find((row) => row.day === "2026-10-14")!.source).toBe("locations_live");
+    expect(rows.filter((row) => row.day !== "2026-10-14").every((row) => row.source === "locations")).toBe(true);
+  });
+
   it("caps today as a partial day", () => {
     const today = rows.find((row) => row.day === "2026-10-14");
     expect(today).toBeDefined();

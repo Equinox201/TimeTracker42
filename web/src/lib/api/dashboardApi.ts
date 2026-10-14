@@ -17,6 +17,7 @@ import {
   endOfSingaporeMonthKey,
   addSingaporeMonthsKey
 } from "../singaporeDate";
+import { todayLiveStatus } from "../liveStatus";
 import { supabase } from "../supabase";
 
 type PaceMode = "calendar_days" | "weekdays";
@@ -362,7 +363,8 @@ export async function getDashboardSummary(_accessToken: string): Promise<Dashboa
     weekVsPreviousWeekHours: secondsToHours(weekSeconds - previousWeekSeconds),
     monthVsPreviousMonthHours: secondsToHours(monthSeconds - previousMonthSeconds),
     paceMode: goals.pace_mode,
-    ...syncMetadata(syncRun, successfulSyncRun)
+    ...syncMetadata(syncRun, successfulSyncRun),
+    ...todayLiveStatus(attendanceRows, todayKey)
   };
 }
 
@@ -385,7 +387,8 @@ export async function getAttendanceHistory(
     totalDays: countSingaporeDaysInclusive(range.from, range.to),
     totalHours: secondsToHours(totalSeconds),
     days,
-    ...syncMetadata(syncRun, successfulSyncRun)
+    ...syncMetadata(syncRun, successfulSyncRun),
+    ...todayLiveStatus(attendanceRows, singaporeDayKey())
   };
 }
 

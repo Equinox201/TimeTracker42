@@ -92,7 +92,13 @@ export function buildDemoAttendance(now: Date, syncedAt: string): DemoAttendance
     }
 
     if (seconds > 0) {
-      rows.push({ day, seconds, source: "demo", synced_at: syncedAt });
+      // Today's row stays "live" so demo mode shows the provisional-session notice.
+      rows.push({
+        day,
+        seconds,
+        source: day === todayKey ? "locations_live" : "locations",
+        synced_at: syncedAt
+      });
     }
   }
 

@@ -111,6 +111,12 @@ below carries the actual reason.
 | – (HTTP 400 on `forty-two-oauth-start`) | `invalid_binding` / `binding_missing` | Malformed binding, or none while `REQUIRE_LOGIN_BINDING=true` |
 | – (HTTP 400 on `auth-exchange`) | `verifier_missing` | No verifier sent while `REQUIRE_LOGIN_BINDING=true` |
 | – (sync says "42 session expired") | `token_refresh_rejected` | Refresh token or client secret rejected by 42 |
+| Sync: "A sync is already running" (409) | `sync_already_running` | Double click or two tabs; the unique running-run index held |
+| Sync: "Synced a moment ago" (429) | `sync_cooldown` | A sync finished less than 15 s ago |
+| Sync: "42 did not respond in time" (504) | `sync_failed` with `reason` | 42 timed out after retries |
+| – | `abandoned_runs_recovered` | A previous run was left `running` for over 10 min and was closed as failed |
+| – | `empty_result_skipped_reconcile` | 42 returned no sessions while local days exist; nothing was zeroed |
+| – | `finalize_failed` | The atomic `finalize_sync` call errored; nothing was written and the run is failed |
 
 ### Rotating the 42 client secret
 
