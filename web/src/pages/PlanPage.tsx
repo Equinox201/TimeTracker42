@@ -164,7 +164,7 @@ export function PlanPage() {
   const plannedRows = result.plannedDays.filter((day) => day.seconds > 0);
 
   return (
-    <section className="space-y-4 pb-2">
+    <section className="mx-auto w-full max-w-3xl space-y-4 pb-2">
       <Card>
         <div className="flex items-start justify-between gap-3">
           <div>

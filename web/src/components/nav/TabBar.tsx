@@ -1,23 +1,16 @@
 import { NavLink } from "react-router-dom";
 
-type Tab = {
-  to: string;
-  label: string;
-  icon: string;
-};
+import { navTabs } from "./tabs";
 
-const tabs: Tab[] = [
-  { to: "/app/main", label: "Main", icon: "◉" },
-  { to: "/app/history", label: "History", icon: "▥" },
-  { to: "/app/plan", label: "Plan", icon: "◇" },
-  { to: "/app/settings", label: "Settings", icon: "⚙" }
-];
-
+// Bottom navigation for phones. From md up the SideNav takes over.
 export function TabBar() {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-tt42-border bg-tt42-surface/90 px-3 pb-[calc(8px+env(safe-area-inset-bottom))] pt-2 backdrop-blur md:left-1/2 md:bottom-4 md:w-[460px] md:-translate-x-1/2 md:rounded-2xl md:border md:shadow-float">
+    <nav
+      aria-label="Primary"
+      className="fixed bottom-0 left-0 right-0 z-40 border-t border-tt42-border bg-tt42-surface/90 px-3 pb-[calc(8px+env(safe-area-inset-bottom))] pt-2 backdrop-blur md:hidden"
+    >
       <ul className="grid grid-cols-4 gap-2">
-        {tabs.map((tab) => (
+        {navTabs.map((tab) => (
           <li key={tab.to}>
             <NavLink
               to={tab.to}
