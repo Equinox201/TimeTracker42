@@ -1,9 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
 
 import { AttendanceMonthCalendar } from "../components/main/AttendanceMonthCalendar";
-import { ConcentricProgressRings, type RingMetric } from "../components/main/ConcentricProgressRings";
-import { MetricCard } from "../components/main/MetricCard";
+import { PaceHero } from "../components/main/PaceHero";
 import { StaleDataBanner } from "../components/main/StaleDataBanner";
+import { Banner } from "../components/ui/Banner";
+import { Button } from "../components/ui/Button";
+import { Card } from "../components/ui/Card";
+import { MiniRing } from "../components/ui/MiniRing";
+import { Skeleton } from "../components/ui/Skeleton";
+import { Stat } from "../components/ui/Stat";
 import {
   getAttendanceHistory,
   getDashboardSummary,
@@ -12,11 +18,16 @@ import {
   type DashboardSummary
 } from "../lib/api/dashboardApi";
 import { useAuth } from "../lib/auth";
-import { deltaHoursReadable, hoursToReadable, progressPercent, shortDateTime } from "../lib/formatters";
-import { endOfSingaporeMonthKey, singaporeMonthKey, startOfSingaporeMonthKey } from "../lib/singaporeDate";
-import { Card } from "../components/ui/Card";
-import { buttonClass } from "../components/ui/Button";
-import { Banner } from "../components/ui/Banner";
+import { buildCumulativeSeries } from "../lib/cumulative";
+import { hoursToReadable, shortDateTime } from "../lib/formatters";
+import { computePace } from "../lib/pace";
+import {
+  endOfSingaporeMonthKey,
+  singaporeDayKey,
+  singaporeMonthKey,
+  singaporeMonthLongLabel,
+  startOfSingaporeMonthKey
+} from "../lib/singaporeDate";
 
 function errorText(error: unknown): string {
   if (error instanceof Error) {
@@ -29,29 +40,8 @@ function useWeekdaysPaceMode(mode: string): boolean {
   return mode.toLowerCase().includes("weekday");
 }
 
-function statusTag(summary: DashboardSummary): { text: string; className: string } {
-  if (summary.hoursLeftToMonthlyGoal <= 0) {
-    return {
-      text: "Exceeded",
-      className: "bg-tt42-accent/15 text-tt42-accent"
-    };
-  }
-
-  const activePace = useWeekdaysPaceMode(summary.paceMode)
-    ? summary.requiredHoursPerRemainingWeekday
-    : summary.requiredHoursPerRemainingDay;
-
-  if (activePace <= summary.dailyGoalHours) {
-    return {
-      text: "On Track",
-      className: "bg-tt42-accent/15 text-tt42-accent"
-    };
-  }
-
-  return {
-    text: "Behind Pace",
-    className: "bg-tt42-warn/15 text-tt42-warn"
-  };
+function ratio(value: number, goal: number): number {
+  return goal > 0 ? value / goal : 0;
 }
 
 function syncSuccessText(data: { insertedDays: number; updatedDays: number; unchangedDays: number; finishedAt: string }): string {
@@ -71,6 +61,7 @@ export function MainPage() {
   const now = new Date();
   // attendance_daily.day uses Singapore operational dates, so the current month query follows Singapore time.
   const currentMonthKey = singaporeMonthKey(now);
+  const todayKey = singaporeDayKey(now);
   const monthStart = startOfSingaporeMonthKey(now);
   const monthEnd = endOfSingaporeMonthKey(now);
 
@@ -110,220 +101,190 @@ export function MainPage() {
   const isRefreshing = dashboardQuery.isFetching || monthHistoryQuery.isFetching;
   const summary = dashboardQuery.data ?? null;
   const monthHistory = monthHistoryQuery.data ?? null;
-
-  const ringMetrics: RingMetric[] =
-    summary === null
-      ? []
-      : [
-          {
-            id: "month",
-            label: "Month",
-            valueHours: summary.hoursMonth,
-            goalHours: summary.monthlyGoalHours,
-            tone: "strong"
-          },
-          {
-            id: "week",
-            label: "Week",
-            valueHours: summary.hoursWeek,
-            goalHours: summary.weeklyGoalHours,
-            tone: "medium"
-          },
-          {
-            id: "day",
-            label: "Day",
-            valueHours: summary.hoursToday,
-            goalHours: summary.dailyGoalHours,
-            tone: "soft"
-          }
-        ];
-
-  const activePaceHours =
-    summary === null
-      ? 0
-      : useWeekdaysPaceMode(summary.paceMode)
-        ? summary.requiredHoursPerRemainingWeekday
-        : summary.requiredHoursPerRemainingDay;
-
   const displayError = dashboardQuery.error ?? monthHistoryQuery.error ?? null;
+
+  const weekdaysOnly = summary ? useWeekdaysPaceMode(summary.paceMode) : true;
+
+  const pace = useMemo(
+    () =>
+      summary
+        ? computePace({
+            todayKey,
+            monthlyGoalHours: summary.monthlyGoalHours,
+            hoursMonth: summary.hoursMonth,
+            weekdaysOnly
+          })
+        : null,
+    [summary, todayKey, weekdaysOnly]
+  );
+
+  const series = useMemo(() => {
+    if (!monthHistory) {
+      return null;
+    }
+    const hoursByDay: Record<string, number> = {};
+    for (const entry of monthHistory.days) {
+      hoursByDay[entry.day] = entry.hours;
+    }
+    return buildCumulativeSeries({
+      monthKey: currentMonthKey,
+      todayKey,
+      monthlyGoalHours: summary?.monthlyGoalHours ?? 0,
+      weekdaysOnly,
+      hoursByDay
+    });
+  }, [currentMonthKey, monthHistory, summary?.monthlyGoalHours, todayKey, weekdaysOnly]);
 
   if (dashboardQuery.isPending) {
     return (
-      <section className="space-y-4 pb-2">
-        <div className="h-80 animate-pulse rounded-card border border-tt42-border bg-tt42-surface2" />
-        <div className="grid grid-cols-2 gap-3">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="h-24 animate-pulse rounded-2xl bg-tt42-surface2" />
-          ))}
+      <section className="space-y-4 pb-2" aria-busy="true" aria-label="Loading dashboard">
+        <Skeleton className="h-12" />
+        <div className="grid gap-4 md:grid-cols-5">
+          <Skeleton className="h-96 md:col-span-3" />
+          <div className="grid grid-cols-2 gap-3 md:col-span-2 md:content-start">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <Skeleton key={index} className="h-28" />
+            ))}
+          </div>
         </div>
+        <Skeleton className="h-80" />
       </section>
     );
   }
 
-  if (!summary) {
+  if (!summary || !pace) {
     return (
       <section className="space-y-4 pb-2">
         <Card>
           <h2 className="text-lg font-semibold">Unable to load dashboard</h2>
           <p className="mt-2 text-sm text-tt42-muted">{errorText(displayError)}</p>
-          <button
-            type="button"
-            className={buttonClass({ variant: "secondary", size: "md", className: "mt-4" })}
+          <Button
+            className="mt-4"
             onClick={() => {
               void dashboardQuery.refetch();
             }}
           >
             Try again
-          </button>
+          </Button>
         </Card>
       </section>
     );
   }
 
-  const status = statusTag(summary);
+  const requiredPace = weekdaysOnly ? summary.requiredHoursPerRemainingWeekday : summary.requiredHoursPerRemainingDay;
+
+  const notes: string[] = [];
+  if (summary.todayIsLive) {
+    notes.push(
+      `Today includes a campus session that was still open at the last sync${
+        summary.liveCheckedAt ? ` (${shortDateTime(summary.liveCheckedAt)})` : ""
+      }. Progress is provisional until it closes and you sync again.`
+    );
+  }
+  if (syncMutation.data) {
+    notes.push(syncSuccessText(syncMutation.data));
+  }
 
   return (
     <section className="space-y-4 pb-2">
-      <Card padding="sm">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-[0.16em] text-tt42-muted">Main</p>
-            <h2 className="text-xl font-semibold">Attendance Progress</h2>
-          </div>
-          <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${status.className}`}>
-            {status.text}
-          </span>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Attendance</h1>
+          <p className="text-sm text-tt42-muted">{singaporeMonthLongLabel(currentMonthKey)}</p>
         </div>
+        <Button
+          variant="primary"
+          onClick={() => {
+            syncMutation.reset();
+            syncMutation.mutate();
+          }}
+          disabled={isRefreshing || syncMutation.isPending}
+        >
+          {syncMutation.isPending ? "Syncing..." : "Sync now"}
+        </Button>
+      </div>
 
-        <div className="mb-3 flex items-center justify-end">
-          <button
-            type="button"
-            onClick={() => {
-              syncMutation.reset();
-              syncMutation.mutate();
-            }}
-            disabled={isRefreshing || syncMutation.isPending}
-            className={buttonClass({ variant: "primary", size: "sm" })}
-          >
-            {syncMutation.isPending ? "Syncing..." : "Sync Now"}
-          </button>
-        </div>
+      <StaleDataBanner
+        isStale={summary.isStale}
+        staleAgeHours={summary.staleAgeHours}
+        lastSyncedAt={summary.lastSyncedAt}
+        syncStatus={summary.syncStatus}
+        syncStartedAt={summary.syncStartedAt}
+        syncFinishedAt={summary.syncFinishedAt}
+        notes={notes}
+      />
 
-        <StaleDataBanner
-          isStale={summary.isStale}
-          staleAgeHours={summary.staleAgeHours}
-          lastSyncedAt={summary.lastSyncedAt}
-          syncStatus={summary.syncStatus}
-          syncStartedAt={summary.syncStartedAt}
-          syncFinishedAt={summary.syncFinishedAt}
-        />
+      {syncMutation.error ? <Banner tone="danger">{errorText(syncMutation.error)}</Banner> : null}
+      {displayError ? <Banner tone="danger">{errorText(displayError)}</Banner> : null}
 
-        {syncMutation.data ? (
-          <Banner tone="success" className="mt-3">
-            {syncSuccessText(syncMutation.data)}
-          </Banner>
-        ) : null}
+      <div className="grid gap-4 md:grid-cols-5">
+        <Card className="md:col-span-3">
+          <PaceHero
+            hoursMonth={summary.hoursMonth}
+            goalHours={summary.monthlyGoalHours}
+            pace={pace}
+            series={series}
+            weekDeltaHours={summary.weekVsPreviousWeekHours}
+            monthDeltaHours={summary.monthVsPreviousMonthHours}
+          />
+        </Card>
 
-        {syncMutation.error ? (
-          <Banner tone="danger" className="mt-3">
-            {errorText(syncMutation.error)}
-          </Banner>
-        ) : null}
-
-        {summary.todayIsLive ? (
-          <Banner tone="success" className="mt-3">
-            Today includes a campus session that was still open at the last sync
-            {summary.liveCheckedAt ? ` (${shortDateTime(summary.liveCheckedAt)})` : ""}. Progress is
-            provisional until the session closes and you sync again.
-          </Banner>
-        ) : null}
-
-        <div className="mt-4">
-          <ConcentricProgressRings
-            metrics={ringMetrics}
-            centerValue={progressPercent(summary.hoursMonth, summary.monthlyGoalHours)}
+        <div className="grid grid-cols-2 gap-3 md:col-span-2 md:content-start">
+          <Stat
+            label="Today"
+            value={hoursToReadable(summary.hoursToday)}
+            hint={`Goal ${hoursToReadable(summary.dailyGoalHours)}`}
+            trailing={<MiniRing ratio={ratio(summary.hoursToday, summary.dailyGoalHours)} label="Today" />}
+          />
+          <Stat
+            label="This week"
+            value={hoursToReadable(summary.hoursWeek)}
+            hint={`Goal ${hoursToReadable(summary.weeklyGoalHours)}`}
+            trailing={<MiniRing ratio={ratio(summary.hoursWeek, summary.weeklyGoalHours)} label="This week" />}
+          />
+          <Stat
+            label="Hours left"
+            value={hoursToReadable(Math.max(summary.hoursLeftToMonthlyGoal, 0))}
+            hint={`of ${hoursToReadable(summary.monthlyGoalHours)}`}
+          />
+          <Stat
+            label="Needed per day"
+            value={`${hoursToReadable(requiredPace)}`}
+            hint={weekdaysOnly ? "Weekdays only" : "Every day"}
           />
         </div>
-      </Card>
-
-      {displayError && (
-        <Banner tone="danger">
-          {errorText(displayError)}
-        </Banner>
-      )}
-
-      <div className="grid grid-cols-2 gap-3">
-        <MetricCard
-          title="Today"
-          value={hoursToReadable(summary.hoursToday)}
-          subtitle={
-            summary.todayIsLive
-              ? `Live now • finalized ${hoursToReadable(summary.hoursTodayFinalized)}`
-              : `Goal ${hoursToReadable(summary.dailyGoalHours)}`
-          }
-        />
-        <MetricCard
-          title="This Week"
-          value={hoursToReadable(summary.hoursWeek)}
-          subtitle={`Goal ${hoursToReadable(summary.weeklyGoalHours)}`}
-        />
-        <MetricCard
-          title="Hours Left"
-          value={hoursToReadable(Math.max(summary.hoursLeftToMonthlyGoal, 0))}
-          subtitle={`Month goal ${hoursToReadable(summary.monthlyGoalHours)}`}
-        />
-        <MetricCard
-          title="Required Pace"
-          value={`${hoursToReadable(activePaceHours)}/day`}
-          subtitle={useWeekdaysPaceMode(summary.paceMode) ? "Using weekdays mode" : "Using all days mode"}
-        />
-        <MetricCard
-          title="Week Delta"
-          value={deltaHoursReadable(summary.weekVsPreviousWeekHours)}
-          subtitle="vs previous week"
-        />
-        <MetricCard
-          title="Month Delta"
-          value={deltaHoursReadable(summary.monthVsPreviousMonthHours)}
-          subtitle="vs previous month"
-        />
       </div>
 
       {monthHistory ? (
-        <AttendanceMonthCalendar
-          month={new Date()}
-          monthKey={currentMonthKey}
-          dailyGoalHours={summary.dailyGoalHours}
-          weeklyGoalHours={summary.weeklyGoalHours}
-          days={monthHistory.days}
-        />
+        <MonthCalendar monthHistory={monthHistory} summary={summary} monthKey={currentMonthKey} month={now} />
       ) : (
         <Card>
-          <h3 className="text-lg font-semibold">Monthly Attendance Calendar</h3>
+          <h3 className="text-lg font-semibold">Monthly attendance</h3>
           <p className="mt-2 text-sm text-tt42-muted">{monthHistoryQuery.isPending ? "Loading..." : "Unavailable."}</p>
         </Card>
       )}
-
-      <RangeSummary summary={summary} monthHistory={monthHistory} />
     </section>
   );
 }
 
-function RangeSummary({ summary, monthHistory }: { summary: DashboardSummary; monthHistory: AttendanceHistory | null }) {
-  const coverage = monthHistory
-    ? `${monthHistory.fromDate} to ${monthHistory.toDate}`
-    : "Current month range not loaded";
-
+function MonthCalendar({
+  monthHistory,
+  summary,
+  monthKey,
+  month
+}: {
+  monthHistory: AttendanceHistory;
+  summary: DashboardSummary;
+  monthKey: string;
+  month: Date;
+}) {
   return (
-    <Card padding="sm">
-      <p className="text-xs uppercase tracking-[0.16em] text-tt42-muted">Snapshot</p>
-      <h3 className="mt-1 text-lg font-semibold">Current Month</h3>
-      <div className="mt-3 grid grid-cols-1 gap-2 text-sm text-tt42-muted sm:grid-cols-2">
-        <p>Coverage: {coverage}</p>
-        <p>Total hours: {hoursToReadable(monthHistory?.totalHours ?? summary.hoursMonth)}</p>
-        <p>Days in range: {monthHistory?.totalDays ?? 0}</p>
-        <p>Pace mode: {useWeekdaysPaceMode(summary.paceMode) ? "Weekdays" : "All days"}</p>
-      </div>
-    </Card>
+    <AttendanceMonthCalendar
+      month={month}
+      monthKey={monthKey}
+      dailyGoalHours={summary.dailyGoalHours}
+      weeklyGoalHours={summary.weeklyGoalHours}
+      days={monthHistory.days}
+    />
   );
 }

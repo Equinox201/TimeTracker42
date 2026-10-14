@@ -8,6 +8,8 @@ type StaleDataBannerProps = {
   syncStatus?: "success" | "failed" | "running" | null;
   syncStartedAt?: string | null;
   syncFinishedAt?: string | null;
+  // Extra context lines (live session note, last manual sync result) shown inside the same block.
+  notes?: string[];
 };
 
 function staleMessage(isStale: boolean, staleAgeHours: number | null, lastSyncedAt: string | null): string {
@@ -41,7 +43,8 @@ export function StaleDataBanner({
   lastSyncedAt,
   syncStatus = null,
   syncStartedAt = null,
-  syncFinishedAt = null
+  syncFinishedAt = null,
+  notes = []
 }: StaleDataBannerProps) {
   const latestStatus = statusMessage(syncStatus, syncStartedAt, syncFinishedAt);
   const hasFailure = syncStatus === "failed";
@@ -54,6 +57,11 @@ export function StaleDataBanner({
         <div>
           <p className="font-medium">{staleMessage(isStale, staleAgeHours, lastSyncedAt)}</p>
           {latestStatus ? <p className="text-xs text-tt42-muted">{latestStatus}</p> : null}
+          {notes.map((note) => (
+            <p key={note} className="text-xs text-tt42-muted">
+              {note}
+            </p>
+          ))}
         </div>
         <p className="text-xs text-tt42-muted tabular-nums">
           Last synced: {lastSyncedAt ? shortDateTime(lastSyncedAt) : "Never synced"}
