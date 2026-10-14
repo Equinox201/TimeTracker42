@@ -8,6 +8,7 @@ attendance goal, and what does it take to get there?**
 
 - **Live app:** https://timetracker42.pages.dev/
 - **Try it without a 42 account:** https://timetracker42.pages.dev/demo (sample data for a fictional student, John Doe)
+- **How it was built, and what went wrong along the way:** [docs/case-study.md](docs/case-study.md)
 
 ## Preview
 
@@ -147,7 +148,7 @@ supabase/
   functions/              Edge Functions; _shared/ holds logging, crypto, binding,
                           attendance maths and HTTP retry (with Deno tests)
   tests/database/         pgTAP tests for grants and row-level security
-docs/                     Architecture, API contract, runbook (incl. incident notes)
+docs/                     Architecture, API contract, runbook (incl. incident notes), case study
 assets/screenshots/       README images, generated from demo mode
 .github/workflows/        CI
 ```
@@ -312,3 +313,7 @@ tinted backgrounds.
 - 42 tokens could be encrypted or moved to Vault-backed storage.
 - The development email OTP fallback should be removed once production 42 login has enough burn-in.
 - Visual regression tests (Playwright screenshots) are not in CI; screenshots are generated on demand.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
