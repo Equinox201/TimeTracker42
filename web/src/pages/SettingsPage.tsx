@@ -245,7 +245,7 @@ export function SettingsPage() {
   const deadlineError = deadlinesQuery.error ?? createDeadlineMutation.error ?? toggleCompleteMutation.error ?? deleteDeadlineMutation.error ?? null;
 
   return (
-    <section className="space-y-4 pb-2">
+    <section className="mx-auto w-full max-w-3xl space-y-4 pb-2">
       <Card>
         <h2 className="text-lg font-semibold">Settings</h2>
         <p className="mt-2 text-sm text-tt42-muted">Appearance, account, goals, pace mode, and deadline planning.</p>

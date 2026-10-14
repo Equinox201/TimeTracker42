@@ -8,15 +8,14 @@ import {
 import { DEMO_USER, isDemoMode } from "../../demo/demoMode";
 import { functionsBaseUrl } from "../functionsUrl";
 import {
-  addSingaporeDaysKey,
   countRemainingSingaporeDays,
   countSingaporeDaysInclusive,
   singaporeDayKey,
   startOfSingaporeMonthKey,
   startOfSingaporeWeekKey,
-  endOfSingaporeMonthKey,
-  addSingaporeMonthsKey
+  endOfSingaporeMonthKey
 } from "../singaporeDate";
+import { comparisonRanges } from "../comparison";
 import { todayLiveStatus } from "../liveStatus";
 import { supabase } from "../supabase";
 
@@ -325,11 +324,12 @@ export async function getDashboardSummary(_accessToken: string): Promise<Dashboa
   const monthStart = startOfSingaporeMonthKey(today);
   const monthEnd = endOfSingaporeMonthKey(today);
   const weekStart = startOfSingaporeWeekKey(today);
-  const previousWeekStart = addSingaporeDaysKey(weekStart, -7);
-  const previousWeekEnd = addSingaporeDaysKey(weekStart, -1);
-  const previousMonthKey = addSingaporeMonthsKey(monthStart.slice(0, 7), -1);
-  const previousMonthStart = `${previousMonthKey}-01`;
-  const previousMonthEnd = addSingaporeDaysKey(monthStart, -1);
+  // Compare like with like: the same stretch of the previous week/month, not its full total.
+  const comparison = comparisonRanges(todayKey);
+  const previousWeekStart = comparison.previousWeekStart;
+  const previousWeekEnd = comparison.previousWeekThroughSamePoint;
+  const previousMonthStart = comparison.previousMonthStart;
+  const previousMonthEnd = comparison.previousMonthThroughSamePoint;
 
   const [attendanceRows, syncRun, successfulSyncRun] = await Promise.all([
     listAttendance(userId, previousMonthStart, monthEnd),
