@@ -28,6 +28,7 @@ import { useTheme } from "../lib/theme";
 import { Card } from "../components/ui/Card";
 import { buttonClass } from "../components/ui/Button";
 import { Banner } from "../components/ui/Banner";
+import { Skeleton } from "../components/ui/Skeleton";
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -532,10 +533,13 @@ export function SettingsPage() {
 
         <div className="mt-4 space-y-3">
           {deadlinesQuery.isPending ? (
-            <div className="rounded-xl bg-tt42-surface2 px-3 py-3 text-sm text-tt42-muted">Loading deadlines...</div>
+            <Skeleton className="h-24 w-full" />
           ) : (deadlinesQuery.data ?? []).length === 0 ? (
-            <div className="rounded-xl bg-tt42-surface2 px-3 py-3 text-sm text-tt42-muted">
-              No deadlines yet.
+            <div className="rounded-xl bg-tt42-surface2 px-4 py-5 text-sm">
+              <p className="font-medium text-tt42-text">No deadlines yet</p>
+              <p className="mt-1 text-tt42-muted">
+                Add a project and a target number of hours, and you will see how much per day it needs.
+              </p>
             </div>
           ) : (
             (deadlinesQuery.data ?? []).map((deadline) => {

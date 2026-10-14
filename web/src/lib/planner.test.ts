@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildPlan, distributeEvenly, nextMonthKey, type PlannerInput } from "./planner";
+import { buildPlan, distributeEvenly, nextMonthKey, toggleDay, type PlannerInput } from "./planner";
 
 const H = 3600;
 
@@ -206,5 +206,62 @@ describe("distributeEvenly", () => {
 describe("nextMonthKey", () => {
   it("rolls over the year", () => {
     expect(nextMonthKey("2026-12")).toBe("2027-01");
+  });
+});
+
+describe("toggleDay", () => {
+  const selection = { weekdays: [1, 2, 3, 4, 5], extraDays: [] as string[], excludedDays: [] as string[] };
+
+  it("turns a normal working day into a day off", () => {
+    expect(toggleDay(selection, "2026-10-21")).toEqual({ extraDays: [], excludedDays: ["2026-10-21"] });
+  });
+
+  it("turns a day off back on", () => {
+    const next = toggleDay({ ...selection, excludedDays: ["2026-10-21"] }, "2026-10-21");
+    expect(next).toEqual({ extraDays: [], excludedDays: [] });
+  });
+
+  it("makes a weekend day an extra working day, and removes it on a second tap", () => {
+    const added = toggleDay(selection, "2026-10-17"); // Saturday
+    expect(added).toEqual({ extraDays: ["2026-10-17"], excludedDays: [] });
+
+    const removed = toggleDay({ ...selection, ...added }, "2026-10-17");
+    expect(removed).toEqual({ extraDays: [], excludedDays: [] });
+  });
+
+  it("keeps lists sorted and free of duplicates", () => {
+    const first = toggleDay(selection, "2026-10-24");
+    const second = toggleDay({ ...selection, ...first }, "2026-10-17");
+    expect(second.extraDays).toEqual(["2026-10-17", "2026-10-24"]);
+  });
+
+  it("never touches the weekday pattern", () => {
+    const sel = { ...selection };
+    toggleDay(sel, "2026-10-21");
+    expect(sel.weekdays).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("round-trips: tapping a day twice restores the original state", () => {
+    const once = toggleDay(selection, "2026-10-21");
+    const twice = toggleDay({ ...selection, ...once }, "2026-10-21");
+    expect(twice).toEqual({ extraDays: selection.extraDays, excludedDays: selection.excludedDays });
+  });
+
+  it("a plan reacts to the toggle (a day off lowers capacity)", () => {
+    const base: PlannerInput = {
+      todayKey: "2026-10-14",
+      monthKey: "2026-10",
+      targetSeconds: 50 * 3600,
+      attendedByDay: {},
+      weekdays: [1, 2, 3, 4, 5],
+      extraDays: [],
+      excludedDays: [],
+      maxSecondsPerDay: 8 * 3600
+    };
+    const before = buildPlan(base);
+    const after = buildPlan({ ...base, ...toggleDay(selection, "2026-10-21") });
+
+    expect(after.workableDays).not.toContain("2026-10-21");
+    expect(after.workableDays.length).toBe(before.workableDays.length - 1);
   });
 });
