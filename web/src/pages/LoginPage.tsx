@@ -4,7 +4,7 @@ import { enterDemoMode } from "../demo/demoMode";
 import { functionsBaseUrl } from "../lib/functionsUrl";
 import { beginLoginBinding } from "../lib/loginBinding";
 import { supabase } from "../lib/supabase";
-import { Card } from "../components/ui/Card";
+import { DashboardPreview } from "../components/marketing/DashboardPreview";
 import { buttonClass } from "../components/ui/Button";
 import { Banner } from "../components/ui/Banner";
 
@@ -67,32 +67,68 @@ export function LoginPage() {
   };
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-[520px] items-center px-4 py-10">
-      <Card as="div" padding="none" className="w-full p-6">
-        <p className="text-xs uppercase tracking-[0.2em] text-tt42-muted">TimeTracker42</p>
-        <h1 className="mt-2 text-3xl font-semibold">Welcome back</h1>
-        <p className="mt-3 text-sm text-tt42-muted">
-          Sign in with your 42 account to track attendance, goals, and deadlines.
-        </p>
+    <div className="min-h-screen bg-tt42-bg text-tt42-text">
+      <div className="mx-auto grid w-full max-w-5xl gap-12 px-5 py-10 md:grid-cols-2 md:items-center md:gap-14 md:px-8 md:py-20">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <span
+              aria-hidden
+              className="grid h-8 w-8 place-items-center rounded-lg bg-tt42-accent text-[13px] font-bold tracking-tight text-tt42-on-accent"
+            >
+              42
+            </span>
+            <span className="text-base font-semibold tracking-tight">TimeTracker</span>
+          </div>
 
-        <button
-          type="button"
-          onClick={continueWithFortyTwo}
-          className={buttonClass({ variant: "primary", className: "mt-6 h-12 w-full text-base" })}
-        >
-          Continue with 42
-        </button>
+          <h1 className="mt-10 text-4xl font-semibold leading-[1.1] tracking-tight md:text-5xl">
+            Know if you are on pace for your attendance goal.
+          </h1>
+          <p className="mt-4 max-w-md text-base text-tt42-muted">
+            TimeTracker syncs your 42 campus attendance and tells you every day whether you are ahead or
+            behind, and what it takes to reach your monthly target.
+          </p>
 
-        <button
-          type="button"
-          onClick={tryDemo}
-          className={buttonClass({ variant: "secondary", className: "mt-3 h-12 w-full text-base" })}
-        >
-          Try the demo
-        </button>
-        <p className="mt-2 text-center text-xs text-tt42-muted">
-          Explore with sample data. No 42 account needed.
-        </p>
+          <div className="mt-8 flex max-w-sm flex-col gap-3">
+            <button
+              type="button"
+              onClick={continueWithFortyTwo}
+              className={buttonClass({ variant: "primary", className: "h-12 w-full text-base" })}
+            >
+              Continue with 42
+            </button>
+            <button
+              type="button"
+              onClick={tryDemo}
+              className={buttonClass({ variant: "secondary", className: "h-12 w-full text-base" })}
+            >
+              Try the demo
+            </button>
+            <p className="text-xs text-tt42-muted">The demo uses sample data. No 42 account needed.</p>
+          </div>
+
+          <ul className="mt-10 max-w-md space-y-3 text-sm text-tt42-muted">
+            <li className="flex gap-3">
+              <span aria-hidden className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-tt42-accent" />
+              <span>
+                <strong className="font-medium text-tt42-text">Pace, not just totals.</strong> See how far
+                ahead or behind you are today, not only how many hours you have.
+              </span>
+            </li>
+            <li className="flex gap-3">
+              <span aria-hidden className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-tt42-accent" />
+              <span>
+                <strong className="font-medium text-tt42-text">Plan the rest of the month.</strong> Pick the days
+                you can come in and find out whether the goal is reachable.
+              </span>
+            </li>
+            <li className="flex gap-3">
+              <span aria-hidden className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-tt42-accent" />
+              <span>
+                <strong className="font-medium text-tt42-text">Your 42 token stays on the server.</strong> The
+                browser never sees it.
+              </span>
+            </li>
+          </ul>
 
         {enableEmailOtpFallback ? (
           <>
@@ -141,7 +177,10 @@ export function LoginPage() {
             </p>
           </>
         ) : null}
-      </Card>
+        </div>
+
+        <DashboardPreview />
+      </div>
     </div>
   );
 }

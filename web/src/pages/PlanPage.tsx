@@ -6,7 +6,7 @@ import { defaultPlan, getPlan, savePlan, type AttendancePlan } from "../lib/api/
 import { getCurrentGoals } from "../lib/api/settingsApi";
 import { useAuth } from "../lib/auth";
 import { hoursToReadable } from "../lib/formatters";
-import { buildPlan, nextMonthKey, type Suggestion } from "../lib/planner";
+import { buildPlan, nextMonthKey, toggleDay, type Suggestion } from "../lib/planner";
 import {
   dayKeyToSingaporeCalendarDate,
   endOfSingaporeMonthKey,
@@ -18,6 +18,8 @@ import {
 import { Card } from "../components/ui/Card";
 import { buttonClass } from "../components/ui/Button";
 import { Banner } from "../components/ui/Banner";
+import { PlanCalendar } from "../components/plan/PlanCalendar";
+import { Skeleton } from "../components/ui/Skeleton";
 
 const WEEKDAYS = [
   { iso: 1, label: "Mon" },
@@ -61,7 +63,6 @@ export function PlanPage() {
 
   const [draft, setDraft] = useState<AttendancePlan>(defaultPlan(thisMonth));
   const [maxHoursInput, setMaxHoursInput] = useState("8");
-  const [newDayOff, setNewDayOff] = useState("");
 
   const goalsQuery = useQuery({
     queryKey: ["goals-current"],
@@ -139,16 +140,8 @@ export function PlanPage() {
     });
   }
 
-  function addDayOff() {
-    if (!newDayOff || newDayOff < `${monthKey}-01` || newDayOff > monthEnd) {
-      return;
-    }
-    setDraft((current) => ({
-      ...current,
-      excludedDays: unique([...current.excludedDays, newDayOff]),
-      extraDays: current.extraDays.filter((day) => day !== newDayOff)
-    }));
-    setNewDayOff("");
+  function toggleCalendarDay(day: string) {
+    setDraft((current) => ({ ...current, ...toggleDay(current, day) }));
   }
 
   function applySuggestion(suggestion: Suggestion) {
@@ -162,6 +155,13 @@ export function PlanPage() {
   const isLoading = goalsQuery.isPending || attendanceQuery.isPending || planQuery.isPending;
   const loadError = goalsQuery.error ?? attendanceQuery.error ?? planQuery.error ?? null;
   const plannedRows = result.plannedDays.filter((day) => day.seconds > 0);
+  const plannedSecondsByDay = useMemo(() => {
+    const byDay: Record<string, number> = {};
+    for (const planned of result.plannedDays) {
+      byDay[planned.day] = planned.seconds;
+    }
+    return byDay;
+  }, [result.plannedDays]);
 
   return (
     <section className="mx-auto w-full max-w-3xl space-y-4 pb-2">
@@ -256,61 +256,20 @@ export function PlanPage() {
           />
         </label>
 
-        <div className="mt-4">
-          <p className="text-sm text-tt42-muted">Days off (holidays, exams)</p>
-          <div className="mt-2 flex gap-2">
-            <input
-              type="date"
-              value={newDayOff}
-              min={`${monthKey}-01`}
-              max={monthEnd}
-              onChange={(event) => setNewDayOff(event.target.value)}
-              className="h-11 flex-1 rounded-lg border border-tt42-border bg-tt42-surface2 px-3"
+        <div className="mt-5">
+          <p className="text-sm text-tt42-muted">Tap a day to take it off, or to add an extra day</p>
+          <div className="mt-2">
+            <PlanCalendar
+              monthKey={monthKey}
+              todayKey={todayKey}
+              weekdays={draft.weekdays}
+              extraDays={draft.extraDays}
+              excludedDays={draft.excludedDays}
+              plannedSecondsByDay={plannedSecondsByDay}
+              attendedSecondsByDay={attendedByDay}
+              onToggleDay={toggleCalendarDay}
             />
-            <button
-              type="button"
-              onClick={addDayOff}
-              className={buttonClass({ variant: "secondary", size: "md" })}
-            >
-              Add
-            </button>
           </div>
-          <ul className="mt-2 flex flex-wrap gap-2">
-            {draft.excludedDays.map((day) => (
-              <li key={day}>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setDraft((current) => ({
-                      ...current,
-                      excludedDays: current.excludedDays.filter((value) => value !== day)
-                    }))
-                  }
-                  className="rounded-full border border-tt42-border bg-tt42-surface2 px-3 py-1 text-xs"
-                  aria-label={`Remove day off ${day}`}
-                >
-                  {dayLabel(day)} ✕
-                </button>
-              </li>
-            ))}
-            {draft.extraDays.map((day) => (
-              <li key={`extra-${day}`}>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setDraft((current) => ({
-                      ...current,
-                      extraDays: current.extraDays.filter((value) => value !== day)
-                    }))
-                  }
-                  className="rounded-full border border-tt42-accent/40 bg-tt42-accent/10 px-3 py-1 text-xs"
-                  aria-label={`Remove extra day ${day}`}
-                >
-                  + {dayLabel(day)} ✕
-                </button>
-              </li>
-            ))}
-          </ul>
         </div>
 
         <div className="mt-4 flex items-center justify-between gap-3">
@@ -338,7 +297,7 @@ export function PlanPage() {
         <p className="text-xs uppercase tracking-[0.15em] text-tt42-muted">Result</p>
 
         {isLoading ? (
-          <p className="mt-3 text-sm text-tt42-muted">Loading...</p>
+          <Skeleton className="mt-3 h-20 w-full" />
         ) : result.remainingSeconds === 0 ? (
           <Banner tone="success" className="mt-3">
             Goal reached for this month. Nothing left to plan.

@@ -2,6 +2,7 @@ import { Area, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis }
 
 import type { CumulativePoint } from "../../lib/cumulative";
 import { deltaHoursReadable, hoursToReadable } from "../../lib/formatters";
+import { useCountUp } from "../../lib/useCountUp";
 import type { PaceResult } from "../../lib/pace";
 import { Skeleton } from "../ui/Skeleton";
 
@@ -12,6 +13,7 @@ type PaceHeroProps = {
   series: CumulativePoint[] | null; // null while the month's attendance is still loading
   weekDeltaHours: number;
   monthDeltaHours: number;
+  showComparison?: boolean;
 };
 
 function statusChip(pace: PaceResult): { text: string; className: string } {
@@ -59,8 +61,17 @@ function ChartTooltip({
   );
 }
 
-export function PaceHero({ hoursMonth, goalHours, pace, series, weekDeltaHours, monthDeltaHours }: PaceHeroProps) {
+export function PaceHero({
+  hoursMonth,
+  goalHours,
+  pace,
+  series,
+  weekDeltaHours,
+  monthDeltaHours,
+  showComparison = true
+}: PaceHeroProps) {
   const chip = statusChip(pace);
+  const shownHours = useCountUp(hoursMonth);
   const fillPercent = clampPercent(pace.progressRatio);
   const markerPercent = clampPercent(pace.expectedRatio);
   const yMax = Math.max(goalHours, hoursMonth, 1);
@@ -72,7 +83,7 @@ export function PaceHero({ hoursMonth, goalHours, pace, series, weekDeltaHours, 
           <p className="text-sm text-tt42-muted">This month</p>
           <p className="mt-1 flex items-baseline gap-2">
             <span className="text-5xl font-semibold leading-none tracking-tight tabular-nums text-tt42-text">
-              {hoursToReadable(hoursMonth)}
+              {hoursToReadable(shownHours)}
             </span>
             <span className="text-base tabular-nums text-tt42-muted">of {hoursToReadable(goalHours)}</span>
           </p>
@@ -153,16 +164,18 @@ export function PaceHero({ hoursMonth, goalHours, pace, series, weekDeltaHours, 
         </div>
       )}
 
-      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-        <div>
-          <dt className="text-xs text-tt42-muted">Week so far vs last week</dt>
-          <dd className="mt-0.5 font-medium tabular-nums">{deltaHoursReadable(weekDeltaHours)}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-tt42-muted">Month so far vs last month</dt>
-          <dd className="mt-0.5 font-medium tabular-nums">{deltaHoursReadable(monthDeltaHours)}</dd>
-        </div>
-      </dl>
+      {showComparison ? (
+        <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+          <div>
+            <dt className="text-xs text-tt42-muted">Week so far vs last week</dt>
+            <dd className="mt-0.5 font-medium tabular-nums">{deltaHoursReadable(weekDeltaHours)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-tt42-muted">Month so far vs last month</dt>
+            <dd className="mt-0.5 font-medium tabular-nums">{deltaHoursReadable(monthDeltaHours)}</dd>
+          </div>
+        </dl>
+      ) : null}
     </div>
   );
 }
