@@ -12,6 +12,8 @@ attendance goal, and what does it take to get there?**
 
 ## Preview
 
+![A 25-second tour: landing page, demo dashboard with the pace hero, then the planner turning an impossible plan into a reachable one](assets/screenshots/walkthrough.gif)
+
 ![Landing page](assets/screenshots/landing.png)
 
 ![Dashboard: pace hero, cumulative chart and calendar](assets/screenshots/dashboard.png)
