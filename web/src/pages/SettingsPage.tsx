@@ -338,6 +338,7 @@ export function SettingsPage() {
             <button
               type="button"
               role="switch"
+              aria-label="Count weekdays only for pace"
               aria-checked={weekdaysOnly}
               onClick={() =>
                 applyDerivedDraft(

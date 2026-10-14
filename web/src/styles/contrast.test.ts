@@ -54,7 +54,37 @@ const TEXT_PAIRS: Array<[string, string, number]> = [
   ["danger", "surface", 4.5]
 ];
 
+// Foreground colour over a translucent tint of itself, as used by chips, banners and the
+// active nav item (bg-tt42-accent/15 text-tt42-accent). Composited over each base surface.
+function composite(tint: Rgb, base: Rgb, alpha: number): Rgb {
+  return [0, 1, 2].map((index) => tint[index] * alpha + base[index] * (1 - alpha)) as Rgb;
+}
+
+const TINTED: Array<[string, number]> = [
+  ["accent", 0.1],
+  ["accent", 0.15],
+  ["warn", 0.1],
+  ["warn", 0.15],
+  ["danger", 0.1],
+  ["danger", 0.15]
+];
+
 describe.each(Object.entries(themes))("%s theme", (_name, tokens) => {
+  it.each(TINTED)("%s text on its own %s tint, over every surface, meets 4.5:1", (tone, alpha) => {
+    for (const base of ["bg", "surface", "surface-2"]) {
+      const background = composite(tokens[tone], tokens[base], alpha);
+      expect(contrast(tokens[tone], background), `${tone} on ${base}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("body and muted text stay readable on the 10% accent banner tint", () => {
+    for (const base of ["bg", "surface", "surface-2"]) {
+      const background = composite(tokens.accent, tokens[base], 0.1);
+      expect(contrast(tokens.text, background)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(tokens["text-muted"], background)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
   it("defines every token the pairs rely on", () => {
     for (const [fg, bg] of TEXT_PAIRS) {
       expect(tokens[fg], `--tt42-${fg}`).toBeDefined();

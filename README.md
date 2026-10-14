@@ -9,7 +9,15 @@ TimeTracker42 is a mobile-first attendance tracker for 42 students. It signs use
 
 ## Preview
 
-![TimeTracker42 feature preview](assets/Feature_visual.png)
+![Landing page](assets/screenshots/landing.png)
+
+![Dashboard: pace hero, cumulative chart and calendar](assets/screenshots/dashboard.png)
+
+| Planner | Light theme |
+|---|---|
+| ![Planner calendar](assets/screenshots/planner.png) | ![Dashboard, light theme](assets/screenshots/dashboard-light.png) |
+
+All screenshots are generated from demo mode (`npm run screenshots` in `web/`).
 
 ## What It Does
 
@@ -248,6 +256,21 @@ supabase start && supabase test db
 # Edge Function shared modules
 deno test supabase/functions/_shared/
 ```
+
+End-to-end and accessibility checks run the production build in a real browser, with no Supabase
+configuration, on a desktop and a phone viewport:
+
+```bash
+cd web
+npx playwright install chromium   # once
+npm run e2e                       # PW_CHANNEL=chrome uses an installed Chrome instead
+```
+
+- `e2e/demo.spec.ts`: landing page, demo flow, sync, planner interaction, settings, theme switch,
+  protected routes, and "no console errors / no failed requests".
+- `e2e/a11y.spec.ts`: axe-core (WCAG 2 A/AA) on every page in light and dark; serious or critical
+  violations fail the build. Automated checks are a floor, not a substitute for keyboard and
+  screen-reader testing.
 
 Edge Functions are type-checked with Deno, one function at a time:
 

@@ -26,10 +26,10 @@
   --tt42-text-rgb: 15 20 25;
   --tt42-text-muted-rgb: 85 96 112;
 
-  --tt42-accent-rgb: 9 119 116;
+  --tt42-accent-rgb: 6 99 96;
   --tt42-on-accent-rgb: 255 255 255;
-  --tt42-warn-rgb: 180 83 9;
-  --tt42-danger-rgb: 190 18 60;
+  --tt42-warn-rgb: 146 64 14;
+  --tt42-danger-rgb: 165 15 53;
 }
 
 :root.dark {

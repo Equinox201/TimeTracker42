@@ -182,7 +182,7 @@ export function AttendanceMonthCalendar({
               style={{ backgroundColor: visual.background }}
             >
               <span className="text-xs font-semibold text-tt42-text">{singaporeDayOfMonthLabel(iso)}</span>
-              <span className="mt-0.5 text-[10px] text-tt42-muted">{shortHours(hours)}</span>
+              <span className="mt-0.5 text-[11px] tabular-nums text-tt42-text">{shortHours(hours)}</span>
             </div>
           );
         })}
