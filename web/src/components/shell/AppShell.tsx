@@ -1,6 +1,7 @@
 import { Outlet } from "react-router-dom";
 
 import { TabBar } from "../nav/TabBar";
+import { DemoBanner } from "../feedback/DemoBanner";
 import { OfflineBanner } from "../feedback/OfflineBanner";
 
 export function AppShell() {
@@ -18,6 +19,7 @@ export function AppShell() {
             </span>
           </div>
 
+          <DemoBanner />
           <OfflineBanner />
         </header>
 

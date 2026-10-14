@@ -1,6 +1,7 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
+import { enterDemoMode } from "../demo/demoMode";
 import { PublicOnly, RequireAuth } from "./RequireAuth";
 
 const AppShell = lazy(async () => ({
@@ -35,6 +36,16 @@ function RouteLoading() {
   );
 }
 
+// Shareable entry point (/demo). A full navigation lets AuthProvider boot straight into demo mode.
+function DemoEntry() {
+  useEffect(() => {
+    enterDemoMode();
+    window.location.replace("/app/main");
+  }, []);
+
+  return <RouteLoading />;
+}
+
 export function App() {
   return (
     <BrowserRouter>
@@ -49,6 +60,7 @@ export function App() {
             }
           />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
+          <Route path="/demo" element={<DemoEntry />} />
 
           <Route
             path="/app"

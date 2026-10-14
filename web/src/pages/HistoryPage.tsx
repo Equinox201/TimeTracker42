@@ -274,7 +274,7 @@ export function HistoryPage() {
 
         <div className="h-60 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartRows} margin={{ top: 6, right: 6, left: -20, bottom: 0 }}>
+            <BarChart data={chartRows} margin={{ top: 6, right: 6, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="tt42HistoryBars" x1="0" y1="1" x2="0" y2="0">
                   <stop offset="0%" stopColor="var(--tt42-teal)" stopOpacity={0.85} />
@@ -287,7 +287,7 @@ export function HistoryPage() {
                 tick={{ fill: "var(--tt42-text-muted)", fontSize: 12 }}
                 axisLine={false}
                 tickLine={false}
-                width={36}
+                width={44}
                 tickFormatter={(value) => `${value}h`}
               />
               <Tooltip
