@@ -33,6 +33,7 @@ import {
 import { Card } from "../components/ui/Card";
 import { buttonClass } from "../components/ui/Button";
 import { Banner } from "../components/ui/Banner";
+import { Skeleton } from "../components/ui/Skeleton";
 
 type MonthlyPoint = {
   monthKey: string;
@@ -185,8 +186,8 @@ export function HistoryPage() {
   if (historyQuery.isPending) {
     return (
       <section className="space-y-4 pb-2">
-        <div className="h-56 animate-pulse rounded-card border border-tt42-border bg-tt42-surface2" />
-        <div className="h-40 animate-pulse rounded-card border border-tt42-border bg-tt42-surface2" />
+        <Skeleton className="h-56 rounded-card" />
+        <Skeleton className="h-40 rounded-card" />
       </section>
     );
   }

@@ -176,3 +176,53 @@ function buildSuggestions(
 export function nextMonthKey(monthKey: string): string {
   return addSingaporeMonthsKey(monthKey, 1);
 }
+
+export type DaySelection = {
+  weekdays: number[];
+  extraDays: string[];
+  excludedDays: string[];
+};
+
+function sortedUnique(values: string[]): string[] {
+  return Array.from(new Set(values)).sort();
+}
+
+// What tapping a day on the planner calendar does:
+//   a working day (weekday pattern, or an extra day) -> becomes a day off / is removed
+//   a day off                                         -> works again
+//   any other day                                     -> becomes an extra working day
+// Returns the new extra and excluded lists; the weekday pattern is never touched.
+export function toggleDay(
+  selection: DaySelection,
+  day: string
+): Pick<DaySelection, "extraDays" | "excludedDays"> {
+  const inPattern = selection.weekdays.includes(singaporeIsoWeekday(day));
+  const isExcluded = selection.excludedDays.includes(day);
+  const isExtra = selection.extraDays.includes(day);
+
+  if (isExcluded) {
+    return {
+      excludedDays: selection.excludedDays.filter((value) => value !== day),
+      extraDays: inPattern ? selection.extraDays : sortedUnique([...selection.extraDays, day])
+    };
+  }
+
+  if (inPattern) {
+    return {
+      excludedDays: sortedUnique([...selection.excludedDays, day]),
+      extraDays: selection.extraDays.filter((value) => value !== day)
+    };
+  }
+
+  if (isExtra) {
+    return {
+      excludedDays: selection.excludedDays,
+      extraDays: selection.extraDays.filter((value) => value !== day)
+    };
+  }
+
+  return {
+    excludedDays: selection.excludedDays,
+    extraDays: sortedUnique([...selection.extraDays, day])
+  };
+}

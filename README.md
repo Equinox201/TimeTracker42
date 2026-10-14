@@ -18,7 +18,8 @@ TimeTracker42 is a mobile-first attendance tracker for 42 students. It signs use
 - Daily, weekly, and monthly attendance progress.
 - Six-month attendance history and monthly calendar views.
 - User-owned goals and deadlines stored in Supabase Postgres.
-- Attendance planner: pick the weekdays you can attend, days off and a daily limit, and see whether the monthly goal is reachable, with concrete ways to fix it when it is not.
+- Attendance planner: pick the weekdays you can attend and a daily limit, tap days on a month calendar to take them off or add extras, and see whether the monthly goal is reachable, with concrete ways to fix it when it is not.
+- A pace-first dashboard that says whether you are ahead or behind today, with a cumulative-vs-pace chart.
 - Stale/failed/last-sync status from `sync_runs`.
 - Mobile-first web UI suitable for iPhone Safari and PWA-style use.
 
