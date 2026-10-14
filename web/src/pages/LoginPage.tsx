@@ -1,12 +1,22 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, Suspense, lazy, useState } from "react";
 
 import { enterDemoMode } from "../demo/demoMode";
 import { functionsBaseUrl } from "../lib/functionsUrl";
 import { beginLoginBinding } from "../lib/loginBinding";
 import { supabase } from "../lib/supabase";
-import { DashboardPreview } from "../components/marketing/DashboardPreview";
 import { buttonClass } from "../components/ui/Button";
 import { Banner } from "../components/ui/Banner";
+
+// The preview pulls in the charting library. Loading it separately keeps it out of the landing
+// page's critical path, so the headline and buttons render first.
+const DashboardPreview = lazy(async () => ({
+  default: (await import("../components/marketing/DashboardPreview")).DashboardPreview
+}));
+
+function PreviewPlaceholder() {
+  // Same footprint as the real preview, so nothing moves when it arrives.
+  return <div aria-hidden className="h-[438px] rounded-card bg-tt42-surface ring-1 ring-inset ring-tt42-border/60" />;
+}
 
 function fortyTwoLoginUrl(binding: string | null): string {
   const url = new URL(`${functionsBaseUrl()}/forty-two-oauth-start`);
@@ -67,8 +77,8 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-tt42-bg text-tt42-text">
-      <div className="mx-auto grid w-full max-w-5xl gap-12 px-5 py-10 md:grid-cols-2 md:items-center md:gap-14 md:px-8 md:py-20">
+    <main className="min-h-screen bg-tt42-bg text-tt42-text">
+      <div className="mx-auto grid w-full max-w-5xl gap-12 px-5 py-10 md:grid-cols-2 md:items-start md:gap-14 md:px-8 md:py-20">
         <div>
           <div className="flex items-center gap-2.5">
             <span
@@ -179,8 +189,10 @@ export function LoginPage() {
         ) : null}
         </div>
 
-        <DashboardPreview />
+        <Suspense fallback={<PreviewPlaceholder />}>
+          <DashboardPreview />
+        </Suspense>
       </div>
-    </div>
+    </main>
   );
 }

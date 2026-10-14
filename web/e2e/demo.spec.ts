@@ -14,6 +14,17 @@ test.describe("landing page", () => {
     expect(errors).toEqual([]);
   });
 
+  test("has a main landmark, a description and a real robots.txt", async ({ page, request }) => {
+    await page.goto("/login");
+    await expect(page.getByRole("main")).toBeVisible();
+    await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /.+/);
+
+    // Without a file the SPA fallback would answer with index.html, which is not valid robots.txt.
+    const robots = await request.get("/robots.txt");
+    expect(robots.ok()).toBe(true);
+    expect(await robots.text()).toContain("User-agent");
+  });
+
   test("/demo deep link goes straight into the demo", async ({ page }) => {
     await page.goto("/demo");
     await page.waitForURL("**/app/main");
