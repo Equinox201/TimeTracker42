@@ -20,7 +20,7 @@ export default {
         }
       },
       fontFamily: {
-        sans: ['"Inter Variable"', "Inter", "-apple-system", "BlinkMacSystemFont", '"Segoe UI"', "system-ui", "sans-serif"]
+        sans: ['"Inter Variable"', '"Inter Fallback"', "Inter", "-apple-system", "BlinkMacSystemFont", '"Segoe UI"', "system-ui", "sans-serif"]
       },
       boxShadow: {
         float: "0 8px 24px rgba(0, 0, 0, 0.18)"
