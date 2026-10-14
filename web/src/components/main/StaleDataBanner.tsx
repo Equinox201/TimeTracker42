@@ -1,4 +1,5 @@
 import { shortDateTime } from "../../lib/formatters";
+import { Banner } from "../ui/Banner";
 
 type StaleDataBannerProps = {
   isStale: boolean;
@@ -45,26 +46,19 @@ export function StaleDataBanner({
   const latestStatus = statusMessage(syncStatus, syncStartedAt, syncFinishedAt);
   const hasFailure = syncStatus === "failed";
 
+  const tone = hasFailure ? "danger" : isStale ? "warn" : "success";
+
   return (
-    <div
-      className={[
-        "rounded-xl border px-3 py-2 text-sm",
-        hasFailure
-          ? "border-tt42-danger/40 bg-tt42-danger/10 text-tt42-text"
-          : isStale
-          ? "border-amber-400/35 bg-amber-400/10 text-amber-200"
-          : "border-tt42-mint/30 bg-tt42-mint/10 text-tt42-text"
-      ].join(" ")}
-    >
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+    <Banner tone={tone}>
+      <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
         <div>
           <p className="font-medium">{staleMessage(isStale, staleAgeHours, lastSyncedAt)}</p>
           {latestStatus ? <p className="text-xs text-tt42-muted">{latestStatus}</p> : null}
         </div>
-        <p className="text-[11px] text-tt42-muted">
+        <p className="text-xs text-tt42-muted tabular-nums">
           Last synced: {lastSyncedAt ? shortDateTime(lastSyncedAt) : "Never synced"}
         </p>
       </div>
-    </div>
+    </Banner>
   );
 }

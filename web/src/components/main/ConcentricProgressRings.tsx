@@ -8,7 +8,8 @@ const RING_GAP = RADII[0] - RADII[1] - STROKE_WIDTH;
 const INNER_RING_INNER_RADIUS = RADII[RADII.length - 1] - STROKE_WIDTH / 2;
 const CENTER_DISK_SIZE = (INNER_RING_INNER_RADIUS - RING_GAP) * 2;
 
-type RingTone = "magenta" | "mint" | "teal";
+// One accent: the three rings differ by intensity (outermost strongest).
+type RingTone = "strong" | "medium" | "soft";
 
 export type RingMetric = {
   id: string;
@@ -23,10 +24,11 @@ type ConcentricProgressRingsProps = {
   centerValue: string;
 };
 
-const colorByTone: Record<RingTone, string> = {
-  magenta: "var(--tt42-magenta)",
-  mint: "var(--tt42-mint)",
-  teal: "var(--tt42-teal)"
+const toneColor = "var(--tt42-accent)";
+const opacityByTone: Record<RingTone, number> = {
+  strong: 1,
+  medium: 0.62,
+  soft: 0.38
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -53,7 +55,7 @@ function headPoint(radius: number, ratio: number): { x: number; y: number } {
 
 export function ConcentricProgressRings({ metrics, centerValue }: ConcentricProgressRingsProps) {
   return (
-    <div className="rounded-3xl border border-tt42-border bg-gradient-to-b from-tt42-surface2/80 to-tt42-surface p-4">
+    <div className="rounded-3xl bg-tt42-surface2/60 p-4">
       <div className="relative mx-auto aspect-square w-full max-w-[340px]">
         <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="h-full w-full">
           {metrics.slice(0, 3).map((metric, index) => {
@@ -65,7 +67,7 @@ export function ConcentricProgressRings({ metrics, centerValue }: ConcentricProg
             const overflow = Math.max(progress - 1, 0);
             const overflowWholeLaps = Math.floor(overflow);
             const overflowPartial = overflow - overflowWholeLaps;
-            const toneColor = colorByTone[metric.tone];
+            const toneOpacity = opacityByTone[metric.tone];
             const dot = headPoint(radius, progress);
 
             return (
@@ -75,8 +77,7 @@ export function ConcentricProgressRings({ metrics, centerValue }: ConcentricProg
                   cy={CENTER}
                   r={radius}
                   fill="none"
-                  stroke="var(--tt42-border)"
-                  strokeOpacity="0.35"
+                  stroke="var(--tt42-surface-2)"
                   strokeWidth={STROKE_WIDTH}
                 />
 
@@ -87,11 +88,11 @@ export function ConcentricProgressRings({ metrics, centerValue }: ConcentricProg
                     r={radius}
                     fill="none"
                     stroke={toneColor}
+                    strokeOpacity={toneOpacity}
                     strokeWidth={STROKE_WIDTH}
                     strokeLinecap="round"
                     strokeDasharray={arcDashArray(radius, baseRatio)}
                     transform={`rotate(-90 ${CENTER} ${CENTER})`}
-                    filter="drop-shadow(0 0 8px rgba(0,0,0,0.28))"
                   />
                 )}
 
@@ -108,7 +109,7 @@ export function ConcentricProgressRings({ metrics, centerValue }: ConcentricProg
                       strokeLinecap="round"
                       strokeDasharray={`${circumference * 0.998} ${circumference}`}
                       transform={`rotate(-90 ${CENTER} ${CENTER})`}
-                      opacity={0.38}
+                      opacity={0.38 * toneOpacity}
                     />
                   ))}
 
@@ -123,7 +124,7 @@ export function ConcentricProgressRings({ metrics, centerValue }: ConcentricProg
                     strokeLinecap="round"
                     strokeDasharray={arcDashArray(radius, overflowPartial)}
                     transform={`rotate(-90 ${CENTER} ${CENTER})`}
-                    opacity={0.7}
+                    opacity={0.7 * toneOpacity}
                   />
                 )}
 
@@ -132,9 +133,10 @@ export function ConcentricProgressRings({ metrics, centerValue }: ConcentricProg
                     cx={dot.x}
                     cy={dot.y}
                     r={STROKE_WIDTH * 0.34}
-                    fill={toneColor}
-                    stroke="rgba(0,0,0,0.32)"
-                    strokeWidth="1.5"
+                    fill="var(--tt42-surface)"
+                    stroke={toneColor}
+                    strokeOpacity={toneOpacity}
+                    strokeWidth="3"
                   />
                 )}
               </g>
@@ -144,10 +146,10 @@ export function ConcentricProgressRings({ metrics, centerValue }: ConcentricProg
 
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div
-            className="flex items-center justify-center rounded-full border border-tt42-border bg-black text-center shadow-soft dark:bg-black/90"
+            className="flex items-center justify-center rounded-full bg-tt42-surface text-center"
             style={{ width: CENTER_DISK_SIZE, height: CENTER_DISK_SIZE }}
           >
-            <p className="text-3xl font-bold text-white">{centerValue}</p>
+            <p className="text-3xl font-semibold tracking-tight tabular-nums text-tt42-text">{centerValue}</p>
           </div>
         </div>
       </div>
@@ -156,9 +158,9 @@ export function ConcentricProgressRings({ metrics, centerValue }: ConcentricProg
         {metrics.slice(0, 3).map((metric) => {
           const target = metric.goalHours > 0 ? metric.goalHours : 0;
           return (
-            <div key={`${metric.id}-summary`} className="rounded-xl border border-tt42-border bg-tt42-surface px-3 py-2">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-tt42-muted">{metric.label}</p>
-              <p className="mt-1 text-sm font-semibold text-tt42-text">{hoursToReadable(metric.valueHours)}</p>
+            <div key={`${metric.id}-summary`} className="rounded-xl bg-tt42-surface px-3 py-2">
+              <p className="text-xs font-medium text-tt42-muted">{metric.label}</p>
+              <p className="mt-1 text-sm font-semibold tabular-nums text-tt42-text">{hoursToReadable(metric.valueHours)}</p>
               <p className="text-[11px] text-tt42-muted">Goal {hoursToCompact(target)}</p>
             </div>
           );

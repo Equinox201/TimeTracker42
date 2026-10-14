@@ -15,7 +15,7 @@ const tabs: Tab[] = [
 
 export function TabBar() {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-tt42-border bg-tt42-surface/95 px-3 pb-[calc(8px+env(safe-area-inset-bottom))] pt-2 backdrop-blur md:left-1/2 md:w-[520px] md:-translate-x-1/2 md:rounded-t-card md:border md:border-b-0">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-tt42-border bg-tt42-surface/90 px-3 pb-[calc(8px+env(safe-area-inset-bottom))] pt-2 backdrop-blur md:left-1/2 md:bottom-4 md:w-[460px] md:-translate-x-1/2 md:rounded-2xl md:border md:shadow-float">
       <ul className="grid grid-cols-4 gap-2">
         {tabs.map((tab) => (
           <li key={tab.to}>
@@ -23,10 +23,10 @@ export function TabBar() {
               to={tab.to}
               className={({ isActive }) =>
                 [
-                  "flex h-12 flex-col items-center justify-center rounded-xl border text-xs transition",
+                  "flex h-12 flex-col items-center justify-center rounded-xl text-xs font-medium transition",
                   isActive
-                    ? "border-tt42-magenta/60 bg-tt42-magenta/15 text-tt42-text shadow-ring"
-                    : "border-transparent text-tt42-muted hover:border-tt42-border hover:bg-tt42-surface2"
+                    ? "bg-tt42-accent/15 text-tt42-accent"
+                    : "text-tt42-muted hover:bg-tt42-surface2 hover:text-tt42-text"
                 ].join(" ")
               }
             >

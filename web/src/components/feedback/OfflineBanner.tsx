@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { Banner } from "../ui/Banner";
+
 export function OfflineBanner() {
   const [isOnline, setIsOnline] = useState<boolean>(() => window.navigator.onLine);
 
@@ -20,9 +22,5 @@ export function OfflineBanner() {
     return null;
   }
 
-  return (
-    <div className="mt-3 rounded-xl border border-amber-400/45 bg-amber-400/15 px-3 py-2 text-sm text-tt42-text">
-      You are offline. Showing last available data where possible.
-    </div>
-  );
+  return <Banner tone="warn">You are offline. Showing last available data where possible.</Banner>;
 }

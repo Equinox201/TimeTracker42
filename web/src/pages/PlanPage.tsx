@@ -15,6 +15,9 @@ import {
   singaporeMonthKey,
   singaporeMonthLongLabel
 } from "../lib/singaporeDate";
+import { Card } from "../components/ui/Card";
+import { buttonClass } from "../components/ui/Button";
+import { Banner } from "../components/ui/Banner";
 
 const WEEKDAYS = [
   { iso: 1, label: "Mon" },
@@ -162,7 +165,7 @@ export function PlanPage() {
 
   return (
     <section className="space-y-4 pb-2">
-      <article className="rounded-card border border-tt42-border bg-tt42-surface p-5 shadow-soft">
+      <Card>
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-[0.15em] text-tt42-muted">Planner</p>
@@ -177,7 +180,7 @@ export function PlanPage() {
                 className={[
                   "rounded-lg border px-3 py-1.5 text-xs",
                   monthKey === key
-                    ? "border-tt42-magenta bg-tt42-magenta/15"
+                    ? "border-tt42-accent bg-tt42-accent/15"
                     : "border-tt42-border bg-tt42-surface2 text-tt42-muted"
                 ].join(" ")}
               >
@@ -193,28 +196,28 @@ export function PlanPage() {
         </p>
 
         <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-xl border border-tt42-border bg-tt42-surface2 p-3">
+          <div className="rounded-xl bg-tt42-surface2 p-3">
             <p className="text-[11px] uppercase tracking-[0.12em] text-tt42-muted">Goal</p>
             <p className="mt-1 text-base font-semibold">{hoursToReadable(monthlyGoalHours)}</p>
           </div>
-          <div className="rounded-xl border border-tt42-border bg-tt42-surface2 p-3">
+          <div className="rounded-xl bg-tt42-surface2 p-3">
             <p className="text-[11px] uppercase tracking-[0.12em] text-tt42-muted">Attended</p>
             <p className="mt-1 text-base font-semibold">{hoursToReadable(result.attendedSeconds / 3600)}</p>
           </div>
-          <div className="rounded-xl border border-tt42-border bg-tt42-surface2 p-3">
+          <div className="rounded-xl bg-tt42-surface2 p-3">
             <p className="text-[11px] uppercase tracking-[0.12em] text-tt42-muted">Remaining</p>
             <p className="mt-1 text-base font-semibold">{hoursToReadable(result.remainingSeconds / 3600)}</p>
           </div>
         </div>
-      </article>
+      </Card>
 
       {loadError ? (
-        <p className="rounded-xl border border-tt42-danger/40 bg-tt42-danger/10 px-3 py-2 text-sm">
+        <Banner tone="danger">
           {errorText(loadError)}
-        </p>
+        </Banner>
       ) : null}
 
-      <article className="rounded-card border border-tt42-border bg-tt42-surface p-5 shadow-soft">
+      <Card>
         <p className="text-xs uppercase tracking-[0.15em] text-tt42-muted">Your schedule</p>
 
         <p className="mt-3 text-sm text-tt42-muted">Days I can attend</p>
@@ -230,7 +233,7 @@ export function PlanPage() {
                 className={[
                   "h-10 rounded-lg border text-xs font-medium",
                   active
-                    ? "border-tt42-magenta bg-tt42-magenta/15"
+                    ? "border-tt42-accent bg-tt42-accent/15"
                     : "border-tt42-border bg-tt42-surface2 text-tt42-muted"
                 ].join(" ")}
               >
@@ -267,7 +270,7 @@ export function PlanPage() {
             <button
               type="button"
               onClick={addDayOff}
-              className="h-11 rounded-lg border border-tt42-border bg-tt42-surface2 px-4 text-sm"
+              className={buttonClass({ variant: "secondary", size: "md" })}
             >
               Add
             </button>
@@ -300,7 +303,7 @@ export function PlanPage() {
                       extraDays: current.extraDays.filter((value) => value !== day)
                     }))
                   }
-                  className="rounded-full border border-tt42-teal/40 bg-tt42-teal/10 px-3 py-1 text-xs"
+                  className="rounded-full border border-tt42-accent/40 bg-tt42-accent/10 px-3 py-1 text-xs"
                   aria-label={`Remove extra day ${day}`}
                 >
                   + {dayLabel(day)} ✕
@@ -321,7 +324,7 @@ export function PlanPage() {
               saveMutation.mutate();
             }}
             disabled={!isDirty || saveMutation.isPending || isLoading}
-            className="h-10 rounded-lg border border-tt42-mint/40 bg-tt42-mint/20 px-4 text-sm font-medium disabled:opacity-50"
+            className={buttonClass({ variant: "primary", size: "md" })}
           >
             {saveMutation.isPending ? "Saving..." : "Save plan"}
           </button>
@@ -329,34 +332,34 @@ export function PlanPage() {
         {saveMutation.error ? (
           <p className="mt-2 text-sm text-tt42-danger">{errorText(saveMutation.error)}</p>
         ) : null}
-      </article>
+      </Card>
 
-      <article className="rounded-card border border-tt42-border bg-tt42-surface p-5 shadow-soft">
+      <Card>
         <p className="text-xs uppercase tracking-[0.15em] text-tt42-muted">Result</p>
 
         {isLoading ? (
           <p className="mt-3 text-sm text-tt42-muted">Loading...</p>
         ) : result.remainingSeconds === 0 ? (
-          <p className="mt-3 rounded-xl border border-tt42-mint/40 bg-tt42-mint/15 px-3 py-2 text-sm">
+          <Banner tone="success" className="mt-3">
             Goal reached for this month. Nothing left to plan.
-          </p>
+          </Banner>
         ) : result.feasible ? (
-          <div className="mt-3 rounded-xl border border-tt42-mint/40 bg-tt42-mint/15 px-3 py-2 text-sm">
+          <Banner tone="success" className="mt-3">
             <p className="font-semibold">Reachable</p>
             <p className="mt-1">
               Averaging {hoursToReadable(result.requiredPerDaySeconds / 3600)} a day over{" "}
               {result.workableDays.length} day(s) gets you to your goal.
             </p>
-          </div>
+          </Banner>
         ) : (
-          <div className="mt-3 rounded-xl border border-tt42-danger/40 bg-tt42-danger/10 px-3 py-2 text-sm">
+          <Banner tone="danger" className="mt-3">
             <p className="font-semibold">Not reachable with this schedule</p>
             <p className="mt-1">
               You would still be {hoursToReadable(result.shortfallSeconds / 3600)} short, even at{" "}
               {hoursToReadable(maxHours)} on every available day
               {result.workableDays.length === 0 ? " (no available days left)" : ""}.
             </p>
-          </div>
+          </Banner>
         )}
 
         {result.suggestions.length > 0 ? (
@@ -365,7 +368,7 @@ export function PlanPage() {
             {result.suggestions.map((suggestion) => (
               <div
                 key={suggestion.kind}
-                className="flex items-center justify-between gap-3 rounded-xl border border-tt42-border bg-tt42-surface2 px-3 py-2 text-sm"
+                className="flex items-center justify-between gap-3 rounded-xl bg-tt42-surface2 px-3 py-2 text-sm"
               >
                 <p>
                   {suggestion.kind === "raise_cap"
@@ -375,7 +378,7 @@ export function PlanPage() {
                 <button
                   type="button"
                   onClick={() => applySuggestion(suggestion)}
-                  className="shrink-0 rounded-lg border border-tt42-border bg-tt42-surface px-3 py-1.5 text-xs"
+                  className={buttonClass({ variant: "secondary", size: "sm" })}
                 >
                   Apply
                 </button>
@@ -387,7 +390,7 @@ export function PlanPage() {
         {plannedRows.length > 0 ? (
           <div className="mt-4">
             <p className="text-xs uppercase tracking-[0.15em] text-tt42-muted">Day by day</p>
-            <ul className="mt-2 divide-y divide-tt42-border rounded-xl border border-tt42-border bg-tt42-surface2">
+            <ul className="mt-2 divide-y divide-tt42-border rounded-xl bg-tt42-surface2">
               {plannedRows.map((day) => (
                 <li key={day.day} className="flex items-center justify-between px-3 py-2 text-sm">
                   <span>
@@ -400,7 +403,7 @@ export function PlanPage() {
             </ul>
           </div>
         ) : null}
-      </article>
+      </Card>
     </section>
   );
 }

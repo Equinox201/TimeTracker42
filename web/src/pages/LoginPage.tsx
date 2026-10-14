@@ -4,6 +4,9 @@ import { enterDemoMode } from "../demo/demoMode";
 import { functionsBaseUrl } from "../lib/functionsUrl";
 import { beginLoginBinding } from "../lib/loginBinding";
 import { supabase } from "../lib/supabase";
+import { Card } from "../components/ui/Card";
+import { buttonClass } from "../components/ui/Button";
+import { Banner } from "../components/ui/Banner";
 
 function fortyTwoLoginUrl(binding: string | null): string {
   const url = new URL(`${functionsBaseUrl()}/forty-two-oauth-start`);
@@ -65,7 +68,7 @@ export function LoginPage() {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-[520px] items-center px-4 py-10">
-      <div className="w-full rounded-card border border-tt42-border bg-tt42-surface p-6 shadow-soft">
+      <Card as="div" padding="none" className="w-full p-6">
         <p className="text-xs uppercase tracking-[0.2em] text-tt42-muted">TimeTracker42</p>
         <h1 className="mt-2 text-3xl font-semibold">Welcome back</h1>
         <p className="mt-3 text-sm text-tt42-muted">
@@ -75,7 +78,7 @@ export function LoginPage() {
         <button
           type="button"
           onClick={continueWithFortyTwo}
-          className="mt-6 flex h-12 w-full items-center justify-center rounded-xl bg-gradient-to-r from-tt42-magenta to-tt42-teal font-semibold text-black shadow-soft"
+          className={buttonClass({ variant: "primary", className: "mt-6 h-12 w-full text-base" })}
         >
           Continue with 42
         </button>
@@ -83,7 +86,7 @@ export function LoginPage() {
         <button
           type="button"
           onClick={tryDemo}
-          className="mt-3 flex h-12 w-full items-center justify-center rounded-xl border border-tt42-border bg-tt42-surface2 font-medium text-tt42-text"
+          className={buttonClass({ variant: "secondary", className: "mt-3 h-12 w-full text-base" })}
         >
           Try the demo
         </button>
@@ -108,29 +111,29 @@ export function LoginPage() {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="you@example.com"
-                  className="h-11 w-full rounded-lg border border-tt42-border bg-tt42-surface2 px-3 text-tt42-text outline-none focus:border-tt42-magenta"
+                  className="h-11 w-full rounded-lg border border-tt42-border bg-tt42-surface2 px-3 text-tt42-text outline-none focus:border-tt42-accent"
                 />
               </label>
 
               <button
                 type="submit"
                 disabled={isSending}
-                className="flex h-11 w-full items-center justify-center rounded-xl border border-tt42-border bg-tt42-surface2 font-medium text-tt42-text disabled:opacity-60"
+                className={buttonClass({ variant: "secondary", className: "h-11 w-full" })}
               >
                 {isSending ? "Sending..." : "Send magic link"}
               </button>
             </form>
 
             {successMessage ? (
-              <p className="mt-4 rounded-xl border border-tt42-mint/40 bg-tt42-mint/15 p-3 text-sm text-tt42-text">
+              <Banner tone="success" className="mt-4">
                 {successMessage}
-              </p>
+              </Banner>
             ) : null}
 
             {errorMessage ? (
-              <p className="mt-4 rounded-xl border border-tt42-danger/40 bg-tt42-danger/10 p-3 text-sm text-tt42-danger">
+              <Banner tone="danger" className="mt-4">
                 {errorMessage}
-              </p>
+              </Banner>
             ) : null}
 
             <p className="mt-4 text-xs text-tt42-muted">
@@ -138,7 +141,7 @@ export function LoginPage() {
             </p>
           </>
         ) : null}
-      </div>
+      </Card>
     </div>
   );
 }

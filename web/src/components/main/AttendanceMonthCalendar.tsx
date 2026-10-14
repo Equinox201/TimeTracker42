@@ -10,6 +10,7 @@ import {
   singaporeMonthLongLabel,
   singaporeWeekStartKeyFromDayKey
 } from "../../lib/singaporeDate";
+import { Card } from "../../components/ui/Card";
 
 type AttendanceMonthCalendarProps = {
   month: Date;
@@ -41,30 +42,37 @@ function shortHours(value: number): string {
   return `${value.toFixed(1)}h`;
 }
 
+// One accent: intensity carries the meaning. Tints are mixed with transparent so they sit
+// correctly on both the light and dark surface.
+function tint(color: string, percent: number): string {
+  return `color-mix(in srgb, ${color} ${Math.round(percent)}%, transparent)`;
+}
+
+const ACCENT = "var(--tt42-accent)";
+const NEUTRAL = "var(--tt42-text-muted)";
+
 function visualForState(state: DayState, hours: number, dailyGoalHours: number): DayVisual {
   if (state === "future") {
-    return { background: "rgba(120, 128, 145, 0.10)" };
+    return { background: tint(NEUTRAL, 8) };
   }
 
   if (state === "achieved") {
-    return { background: "rgba(53, 224, 181, 0.30)" };
+    return { background: tint(ACCENT, 26) };
   }
 
   if (state === "exceeded") {
     if (dailyGoalHours <= 0) {
-      return { background: "rgba(255, 15, 138, 0.34)" };
+      return { background: tint(ACCENT, 40) };
     }
     const ratio = clamp((hours - dailyGoalHours) / dailyGoalHours, 0, 1.6);
-    const opacity = 0.34 + ratio * 0.16;
-    return { background: `rgba(255, 15, 138, ${opacity.toFixed(3)})` };
+    return { background: tint(ACCENT, 34 + ratio * 8) };
   }
 
   if (dailyGoalHours <= 0) {
-    return { background: "rgba(42, 50, 68, 0.20)" };
+    return { background: tint(NEUTRAL, 14) };
   }
   const missRatio = clamp((dailyGoalHours - hours) / dailyGoalHours, 0, 1);
-  const opacity = 0.16 + missRatio * 0.18;
-  return { background: `rgba(42, 50, 68, ${opacity.toFixed(3)})` };
+  return { background: tint(NEUTRAL, 12 + missRatio * 14) };
 }
 
 function dayState(targetKey: string, hours: number, dailyGoalHours: number): DayState {
@@ -134,7 +142,7 @@ export function AttendanceMonthCalendar({
   }
 
   return (
-    <article className="rounded-card border border-tt42-border bg-tt42-surface p-4 shadow-soft">
+    <Card padding="sm">
       <header className="mb-3 flex items-center justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.16em] text-tt42-muted">Monthly Attendance Calendar</p>
@@ -168,8 +176,8 @@ export function AttendanceMonthCalendar({
               key={iso}
               className={[
                 "flex h-14 flex-col items-center justify-center rounded-lg border border-transparent px-1 py-1",
-                today ? "border-tt42-teal" : "",
-                weekAchieved ? "ring-1 ring-tt42-mint/60" : ""
+                today ? "border-tt42-accent" : "",
+                weekAchieved ? "ring-1 ring-tt42-accent/60" : ""
               ].join(" ")}
               style={{ backgroundColor: visual.background }}
             >
@@ -181,13 +189,13 @@ export function AttendanceMonthCalendar({
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-tt42-muted sm:grid-cols-5">
-        <LegendDot label="Exceeded" color="rgba(255, 15, 138, 0.42)" />
-        <LegendDot label="Achieved" color="rgba(53, 224, 181, 0.30)" />
-        <LegendDot label="Missed" color="rgba(42, 50, 68, 0.26)" />
-        <LegendDot label="Future" color="rgba(120, 128, 145, 0.10)" />
-        <LegendDot label="Week goal hit" color="rgba(53, 224, 181, 0.16)" withRing />
+        <LegendDot label="Exceeded" color={tint(ACCENT, 42)} />
+        <LegendDot label="Achieved" color={tint(ACCENT, 26)} />
+        <LegendDot label="Missed" color={tint(NEUTRAL, 22)} />
+        <LegendDot label="Future" color={tint(NEUTRAL, 8)} />
+        <LegendDot label="Week goal hit" color={tint(ACCENT, 12)} withRing />
       </div>
-    </article>
+    </Card>
   );
 }
 
@@ -197,7 +205,7 @@ function LegendDot({ label, color, withRing = false }: { label: string; color: s
       <span
         className={[
           "inline-block h-3 w-4 rounded-sm",
-          withRing ? "ring-1 ring-tt42-mint/70" : ""
+          withRing ? "ring-1 ring-tt42-accent/70" : ""
         ].join(" ")}
         style={{ backgroundColor: color }}
       />
