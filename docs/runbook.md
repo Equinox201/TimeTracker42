@@ -81,3 +81,38 @@ Build output directory: dist
 4. Confirm `sync_runs`, `location_sessions`, and `attendance_daily` update.
 5. Confirm Main and History show last-sync metadata.
 6. Confirm Settings can read/write goals and deadlines.
+
+## Diagnosing sign-in failures
+
+Every Edge Function writes one JSON line per event (`fn`, `event`, `request_id`,
+`level`, plus event-specific fields). Secrets, authorization codes and tokens are
+never logged. In the Supabase dashboard, open **Logs → Edge Functions** and search
+for the `event` name, or query the unified logs:
+
+```sql
+select timestamp, event_message
+from logs
+where source = 'function_logs' and event_message like '%"level":"error"%'
+order by timestamp desc
+limit 50
+```
+
+The browser only ever sees a short `error=` code on `/auth/callback`; the event
+below carries the actual reason.
+
+| Browser `error=` | Log `event` | Typical cause |
+|---|---|---|
+| `forty_two_exchange_failed` | `token_exchange_rejected` | `FORTY_TWO_CLIENT_SECRET` rotated or wrong (`invalid_client`), or `FORTY_TWO_REDIRECT_URI` does not match the 42 app |
+| `forty_two_profile_failed` | `profile_fetch_rejected` | 42 API outage or revoked token |
+| `auth_setup_failed` | `auth_setup_failed` | Supabase user/profile/token writes failed; check `reason` |
+| `invalid_state` | `invalid_state` | OAuth state expired (10 min) or already used |
+| `forty_two_denied` | `forty_two_denied` | User declined on 42 |
+| – (HTTP 400 on `auth-exchange`) | `exchange_code_rejected` | Single-use exchange code replayed |
+| – (sync says "42 session expired") | `token_refresh_rejected` | Refresh token or client secret rejected by 42 |
+
+### Rotating the 42 client secret
+
+1. Generate a new secret in the 42 intra app settings.
+2. Update `FORTY_TWO_CLIENT_SECRET` in Supabase (Edge Functions → Secrets, or
+   `npx supabase secrets set FORTY_TWO_CLIENT_SECRET=...`). No redeploy is needed.
+3. Sign in again and confirm `login_succeeded` appears in the logs.

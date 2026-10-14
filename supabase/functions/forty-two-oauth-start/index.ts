@@ -1,5 +1,7 @@
 import { createClient } from "supabase";
 
+import { createLogger, errorMessage } from "../_shared/log.ts";
+
 const OAUTH_AUTHORIZE_URL = "https://api.intra.42.fr/oauth/authorize";
 const STATE_TTL_MS = 10 * 60 * 1000;
 
@@ -78,6 +80,7 @@ function redirectTarget(requestUrl: URL, appOrigin: string): string {
 }
 
 Deno.serve(async (req) => {
+  const log = createLogger("forty-two-oauth-start");
   if (req.method === "OPTIONS") {
     return new Response(null, {
       status: 204,
@@ -101,7 +104,8 @@ Deno.serve(async (req) => {
     fortyTwoClientId = requiredEnv("FORTY_TWO_CLIENT_ID");
     fortyTwoRedirectUri = requiredEnv("FORTY_TWO_REDIRECT_URI");
     appOrigin = requiredEnv("APP_ORIGIN");
-  } catch {
+  } catch (error) {
+    log.error("config_incomplete", { reason: errorMessage(error) });
     return jsonError("Server configuration is incomplete.", 500);
   }
 
@@ -109,6 +113,7 @@ Deno.serve(async (req) => {
   try {
     redirectTo = redirectTarget(new URL(req.url), appOrigin);
   } catch {
+    log.warn("invalid_redirect_to");
     return jsonError("Invalid redirect_to.", 400);
   }
 
@@ -133,6 +138,7 @@ Deno.serve(async (req) => {
   });
 
   if (error) {
+    log.error("state_insert_failed", { reason: errorMessage(error) });
     return jsonError("Could not start OAuth flow.", 500);
   }
 

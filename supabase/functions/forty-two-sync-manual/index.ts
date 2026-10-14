@@ -1,5 +1,7 @@
 import { createClient } from "supabase";
 
+import { createLogger, errorMessage } from "../_shared/log.ts";
+
 const FORTY_TWO_TOKEN_URL = "https://api.intra.42.fr/oauth/token";
 const FORTY_TWO_API_BASE_URL = "https://api.intra.42.fr/v2";
 const PAGE_SIZE = 100;
@@ -257,9 +259,11 @@ async function refreshFortyTwoToken(
 
   if (!response.ok) {
     const detail = (await response.text()).slice(0, 300);
-    console.error(
-      JSON.stringify({ fn: "forty-two-sync-manual", event: "refresh_rejected", status: response.status, detail })
-    );
+    createLogger("forty-two-sync-manual").error("token_refresh_rejected", {
+      user_id: userId,
+      status: response.status,
+      detail
+    });
     throw new SafeSyncError("42 session expired. Please sign in again.", 401);
   }
 
@@ -599,6 +603,8 @@ async function upsertAttendanceDaily(
 }
 
 Deno.serve(async (req) => {
+  const log = createLogger("forty-two-sync-manual");
+  const requestStartedAt = Date.now();
   let supabaseUrl: string;
   let serviceRoleKey: string;
   let fortyTwoClientId: string;
@@ -611,7 +617,8 @@ Deno.serve(async (req) => {
     fortyTwoClientId = requiredEnv("FORTY_TWO_CLIENT_ID");
     fortyTwoClientSecret = requiredEnv("FORTY_TWO_CLIENT_SECRET");
     allowedOrigin = appOriginValue(requiredEnv("APP_ORIGIN"));
-  } catch {
+  } catch (error) {
+    log.error("config_incomplete", { reason: errorMessage(error) });
     return Response.json(
       { error: "Server configuration is incomplete." },
       {
@@ -652,9 +659,11 @@ Deno.serve(async (req) => {
   });
 
   let syncRunId: string | null = null;
+  let loggedUserId: string | null = null;
 
   try {
     const userId = await authenticatedUserId(supabase, accessToken);
+    loggedUserId = userId;
     const profile = await loadProfile(supabase, userId);
     let token = await loadFortyTwoToken(supabase, userId);
 
@@ -719,6 +728,14 @@ Deno.serve(async (req) => {
     const finishedAt = new Date().toISOString();
 
     await updateSyncRun(supabase, syncRunId, "success", finishedAt);
+    log.info("sync_completed", {
+      user_id: userId,
+      sync_run_id: syncRunId,
+      sessions: normalizedSessions.length,
+      inserted_days: counts.insertedDays,
+      updated_days: counts.updatedDays,
+      duration_ms: Date.now() - requestStartedAt
+    });
 
     return jsonResponse(
       allowedOrigin,
@@ -736,6 +753,13 @@ Deno.serve(async (req) => {
   } catch (error) {
     const message = safeErrorMessage(error);
     const status = error instanceof SafeSyncError ? error.status : 500;
+    log.error("sync_failed", {
+      user_id: loggedUserId,
+      sync_run_id: syncRunId,
+      status,
+      reason: errorMessage(error),
+      duration_ms: Date.now() - requestStartedAt
+    });
     if (syncRunId) {
       await updateSyncRun(supabase, syncRunId, "failed", new Date().toISOString(), message);
     }
