@@ -4,10 +4,12 @@ import {
   buildDemoAttendance,
   buildDemoDeadlines,
   buildDemoGoal,
+  buildDemoPlan,
   buildDemoSyncRuns,
   type DemoAttendanceRow,
   type DemoDeadlineRow,
   type DemoGoalRow,
+  type DemoPlanRow,
   type DemoSyncRunRow
 } from "./fixtures";
 
@@ -19,6 +21,7 @@ type DemoState = {
   attendance: DemoAttendanceRow[];
   syncRuns: DemoSyncRunRow[];
   deadlines: DemoDeadlineRow[];
+  plans: Map<string, DemoPlanRow>;
   sequence: number;
 };
 
@@ -45,6 +48,7 @@ function createState(now: Date): DemoState {
     attendance: buildDemoAttendance(now, lastSuccess?.finished_at ?? now.toISOString()),
     syncRuns,
     deadlines: buildDemoDeadlines(now, DEMO_USER.id),
+    plans: new Map([[buildDemoPlan(now, DEMO_USER.id).month, buildDemoPlan(now, DEMO_USER.id)]]),
     sequence: 0
   };
 }
@@ -97,8 +101,27 @@ export function demoDeadlineRows(): DemoDeadlineRow[] {
     .map((row) => ({ ...row }));
 }
 
+export function demoPlanRow(month: string): DemoPlanRow | null {
+  const row = current().plans.get(month);
+  return row ? { ...row, weekdays: [...row.weekdays], extra_days: [...row.extra_days], excluded_days: [...row.excluded_days] } : null;
+}
+
+export function saveDemoPlan(
+  month: string,
+  patch: Pick<DemoPlanRow, "weekdays" | "extra_days" | "excluded_days" | "max_hours_per_day">
+): DemoPlanRow {
+  const row: DemoPlanRow = {
+    user_id: DEMO_USER.id,
+    month,
+    ...patch,
+    updated_at: new Date().toISOString()
+  };
+  current().plans.set(month, row);
+  return demoPlanRow(month)!;
+}
+
 export function createDemoDeadline(
-  input: Pick<DemoDeadlineRow, "title" | "due_at" | "target_seconds" | "notes">
+  input: Pick<DemoDeadlineRow, "title" | "start_on" | "due_at" | "target_seconds" | "notes">
 ): DemoDeadlineRow {
   const next = current();
   next.sequence += 1;

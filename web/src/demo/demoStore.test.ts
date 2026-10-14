@@ -7,9 +7,11 @@ import {
   demoDeadlineRows,
   demoGoalRow,
   demoLatestSuccessfulSyncRun,
+  demoPlanRow,
   demoLatestSyncRun,
   resetDemoStore,
   runDemoSync,
+  saveDemoPlan,
   setDemoGoal,
   updateDemoDeadline
 } from "./demoStore";
@@ -34,6 +36,7 @@ describe("deadlines", () => {
   it("creates, updates and deletes", () => {
     const created = createDemoDeadline({
       title: "Write README",
+      start_on: "2026-10-14",
       due_at: "2026-10-30T00:00:00.000Z",
       target_seconds: 3600,
       notes: null
@@ -57,6 +60,26 @@ describe("deadlines", () => {
     const [first] = demoDeadlineRows();
     first.title = "tampered";
     expect(demoDeadlineRows()[0].title).not.toBe("tampered");
+  });
+});
+
+describe("plans", () => {
+  it("opens with a Monday-Friday plan for the current month and keeps edits", () => {
+    const initial = demoPlanRow("2026-10");
+    expect(initial?.weekdays).toEqual([1, 2, 3, 4, 5]);
+    expect(initial?.excluded_days.length).toBeLessThanOrEqual(1);
+
+    saveDemoPlan("2026-10", {
+      weekdays: [1, 3],
+      extra_days: ["2026-10-17"],
+      excluded_days: [],
+      max_hours_per_day: 5
+    });
+    expect(demoPlanRow("2026-10")).toMatchObject({ weekdays: [1, 3], max_hours_per_day: 5 });
+  });
+
+  it("has no plan for a month that was never saved", () => {
+    expect(demoPlanRow("2027-03")).toBeNull();
   });
 });
 

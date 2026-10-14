@@ -1,14 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  differenceInCalendarDays,
-  format,
-  parseISO,
-  startOfDay,
-  startOfMonth
-} from "date-fns";
+import { format, startOfMonth } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
-import { getDashboardSummary } from "../lib/api/dashboardApi";
+import { getAttendanceHistory, getDashboardSummary } from "../lib/api/dashboardApi";
 import {
   createDeadline,
   deleteDeadline,
@@ -19,6 +14,7 @@ import {
   type Deadline
 } from "../lib/api/settingsApi";
 import { useAuth } from "../lib/auth";
+import { deadlineProgress } from "../lib/deadlines";
 import { hoursToReadable, monthYearLabel } from "../lib/formatters";
 import {
   buildRecommendedPace,
@@ -27,6 +23,7 @@ import {
   type GoalInputMode,
   type PaceMode
 } from "../lib/goalMath";
+import { singaporeDayKey, startOfSingaporeMonthKey } from "../lib/singaporeDate";
 import { useTheme } from "../lib/theme";
 
 function clamp(value: number, min: number, max: number): number {
@@ -52,24 +49,6 @@ function toISODate(date: Date): string {
   return format(date, "yyyy-MM-dd");
 }
 
-function deadlinePace(deadline: Deadline, baselineHours: number): { hoursLeft: number; daysLeft: number; requiredPerDay: number } {
-  const now = startOfDay(new Date());
-  const target = parseISO(deadline.targetDate);
-  if (Number.isNaN(target.getTime())) {
-    return { hoursLeft: Math.max(deadline.targetHours - baselineHours, 0), daysLeft: 0, requiredPerDay: 0 };
-  }
-
-  const daysLeft = Math.max(differenceInCalendarDays(startOfDay(target), now) + 1, 0);
-  const hoursLeft = Math.max(deadline.targetHours - baselineHours, 0);
-  const requiredPerDay = daysLeft > 0 ? hoursLeft / daysLeft : hoursLeft > 0 ? hoursLeft : 0;
-
-  return {
-    hoursLeft,
-    daysLeft,
-    requiredPerDay
-  };
-}
-
 export function SettingsPage() {
   const queryClient = useQueryClient();
   const { preference, setPreference } = useTheme();
@@ -83,6 +62,7 @@ export function SettingsPage() {
   const [goalInputMode, setGoalInputMode] = useState<GoalInputMode>("monthly");
 
   const [newDeadlineTitle, setNewDeadlineTitle] = useState("");
+  const [newDeadlineStart, setNewDeadlineStart] = useState(singaporeDayKey());
   const [newDeadlineDate, setNewDeadlineDate] = useState(toISODate(new Date()));
   const [newDeadlineHours, setNewDeadlineHours] = useState("90");
   const [newDeadlineNotes, setNewDeadlineNotes] = useState("");
@@ -110,6 +90,28 @@ export function SettingsPage() {
       return listDeadlines(accessToken);
     }
   });
+
+  const todayKey = singaporeDayKey();
+  // Each deadline is measured from its own start date, so load attendance back to the earliest one.
+  const deadlinesFrom = (deadlinesQuery.data ?? []).reduce(
+    (earliest, deadline) => (deadline.startOn < earliest ? deadline.startOn : earliest),
+    startOfSingaporeMonthKey()
+  );
+  const deadlineAttendanceQuery = useQuery({
+    queryKey: ["attendance-deadlines", deadlinesFrom, todayKey],
+    enabled: deadlinesQuery.isSuccess,
+    queryFn: async () => {
+      const accessToken = await validAccessToken();
+      return getAttendanceHistory(accessToken, { from: deadlinesFrom, to: todayKey });
+    }
+  });
+  const hoursByDay = useMemo(() => {
+    const byDay: Record<string, number> = {};
+    for (const entry of deadlineAttendanceQuery.data?.days ?? []) {
+      byDay[entry.day] = entry.hours;
+    }
+    return byDay;
+  }, [deadlineAttendanceQuery.data]);
 
   useEffect(() => {
     const payload = goalsQuery.data;
@@ -195,6 +197,7 @@ export function SettingsPage() {
       const accessToken = await validAccessToken();
       return createDeadline(accessToken, {
         title: newDeadlineTitle.trim(),
+        startOn: newDeadlineStart,
         targetDate: newDeadlineDate,
         targetHours: asNumber(newDeadlineHours, 0),
         notes: newDeadlineNotes.trim() ? newDeadlineNotes.trim() : null
@@ -204,8 +207,12 @@ export function SettingsPage() {
       setNewDeadlineTitle("");
       setNewDeadlineHours("90");
       setNewDeadlineNotes("");
+      setNewDeadlineStart(singaporeDayKey());
       setNewDeadlineDate(toISODate(new Date()));
-      await queryClient.invalidateQueries({ queryKey: ["deadlines"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["deadlines"] }),
+        queryClient.invalidateQueries({ queryKey: ["attendance-deadlines"] })
+      ]);
     }
   });
 
@@ -384,16 +391,17 @@ export function SettingsPage() {
             <p>Current month hours: {hoursToReadable(monthlyHoursSoFar)}</p>
             <p>Edited field: {goalInputMode}</p>
           </div>
+          <p className="mt-3 text-xs text-tt42-muted">
+            This is guidance only and never changes your goal. To see whether your target fits the days you
+            can attend, use the planner.
+          </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                applyDerivedDraft("daily", recommendation.recDaily);
-              }}
+            <Link
+              to="/app/plan"
               className="rounded-lg border border-tt42-border bg-tt42-surface px-3 py-2 text-xs font-medium"
             >
-              Apply Recommended Daily Target
-            </button>
+              Open the planner
+            </Link>
           </div>
         </div>
 
@@ -449,6 +457,16 @@ export function SettingsPage() {
               value={newDeadlineTitle}
               onChange={(event) => setNewDeadlineTitle(event.target.value)}
               placeholder="Piscine checkpoint"
+              className="h-11 w-full rounded-lg border border-tt42-border bg-tt42-surface2 px-3"
+            />
+          </label>
+
+          <label className="text-sm">
+            <span className="mb-1 block text-tt42-muted">Counted from</span>
+            <input
+              type="date"
+              value={newDeadlineStart}
+              onChange={(event) => setNewDeadlineStart(event.target.value)}
               className="h-11 w-full rounded-lg border border-tt42-border bg-tt42-surface2 px-3"
             />
           </label>
@@ -518,7 +536,14 @@ export function SettingsPage() {
             </div>
           ) : (
             (deadlinesQuery.data ?? []).map((deadline) => {
-              const pace = deadlinePace(deadline, monthlyHoursSoFar);
+              const pace = deadlineProgress({
+                startOn: deadline.startOn,
+                dueOn: deadline.targetDate,
+                targetHours: deadline.targetHours,
+                todayKey,
+                hoursByDay,
+                weekdaysOnly
+              });
               return (
                 <article key={deadline.id} className="rounded-xl border border-tt42-border bg-tt42-surface2 p-3">
                   <div className="flex items-start justify-between gap-3">
@@ -540,10 +565,14 @@ export function SettingsPage() {
 
                   <div className="mt-2 grid grid-cols-1 gap-1 text-xs text-tt42-muted sm:grid-cols-3">
                     <p>Target: {hoursToReadable(deadline.targetHours)}</p>
+                    <p>Attended: {hoursToReadable(pace.attendedHours)}</p>
                     <p>Hours left: {hoursToReadable(pace.hoursLeft)}</p>
                     <p>Required/day: {hoursToReadable(pace.requiredPerDay)}</p>
                     <p>Days left: {pace.daysLeft}</p>
-                    <p>Baseline: {hoursToReadable(monthlyHoursSoFar)} this month</p>
+                    <p>
+                      Counted from {deadline.startOn}
+                      {pace.status === "overdue" ? " · overdue" : pace.status === "achieved" ? " · target met" : ""}
+                    </p>
                   </div>
 
                   {deadline.notes && <p className="mt-2 text-xs text-tt42-muted">{deadline.notes}</p>}

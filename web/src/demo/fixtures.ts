@@ -37,6 +37,7 @@ export type DemoDeadlineRow = {
   id: string;
   user_id: string;
   title: string;
+  start_on: string;
   due_at: string;
   target_seconds: number | null;
   notes: string | null;
@@ -142,6 +143,40 @@ export function buildDemoSyncRuns(now: Date): DemoSyncRunRow[] {
   ];
 }
 
+export type DemoPlanRow = {
+  user_id: string;
+  month: string;
+  weekdays: number[];
+  extra_days: string[];
+  excluded_days: string[];
+  max_hours_per_day: number;
+  updated_at: string;
+};
+
+// Mon-Fri, 8h cap, one upcoming weekday off, so the planner opens on a believable schedule.
+export function buildDemoPlan(now: Date, userId: string): DemoPlanRow {
+  const todayKey = singaporeDayKey(now);
+  const month = singaporeMonthKey(now);
+  let dayOff: string | null = null;
+  for (let offset = 7; offset <= 20; offset += 1) {
+    const day = addSingaporeDaysKey(todayKey, offset);
+    if (day.startsWith(month) && isSingaporeWeekdayKey(day)) {
+      dayOff = day;
+      break;
+    }
+  }
+
+  return {
+    user_id: userId,
+    month,
+    weekdays: [1, 2, 3, 4, 5],
+    extra_days: [],
+    excluded_days: dayOff ? [dayOff] : [],
+    max_hours_per_day: 8,
+    updated_at: now.toISOString()
+  };
+}
+
 export function buildDemoDeadlines(now: Date, userId: string): DemoDeadlineRow[] {
   const todayKey = singaporeDayKey(now);
   const due = (days: number) => `${addSingaporeDaysKey(todayKey, days)}T00:00:00.000Z`;
@@ -151,8 +186,9 @@ export function buildDemoDeadlines(now: Date, userId: string): DemoDeadlineRow[]
       id: "demo-deadline-1",
       user_id: userId,
       title: "Core project submission",
+      start_on: addSingaporeDaysKey(todayKey, -12),
       due_at: due(9),
-      target_seconds: 90 * 3600,
+      target_seconds: 75 * 3600,
       notes: "Peer evaluations must be booked two days before.",
       is_completed: false
     },
@@ -160,8 +196,9 @@ export function buildDemoDeadlines(now: Date, userId: string): DemoDeadlineRow[]
       id: "demo-deadline-2",
       user_id: userId,
       title: "Exam preparation",
+      start_on: addSingaporeDaysKey(todayKey, -3),
       due_at: due(21),
-      target_seconds: 130 * 3600,
+      target_seconds: 100 * 3600,
       notes: null,
       is_completed: false
     },
@@ -169,6 +206,7 @@ export function buildDemoDeadlines(now: Date, userId: string): DemoDeadlineRow[]
       id: "demo-deadline-3",
       user_id: userId,
       title: "Evaluation backlog",
+      start_on: addSingaporeDaysKey(todayKey, -20),
       due_at: due(-4),
       target_seconds: 30 * 3600,
       notes: "Finished early.",

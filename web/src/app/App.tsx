@@ -24,6 +24,10 @@ const HistoryPage = lazy(async () => ({
   default: (await import("../pages/HistoryPage")).HistoryPage
 }));
 
+const PlanPage = lazy(async () => ({
+  default: (await import("../pages/PlanPage")).PlanPage
+}));
+
 const SettingsPage = lazy(async () => ({
   default: (await import("../pages/SettingsPage")).SettingsPage
 }));
@@ -73,6 +77,7 @@ export function App() {
             <Route index element={<Navigate to="main" replace />} />
             <Route path="main" element={<MainPage />} />
             <Route path="history" element={<HistoryPage />} />
+            <Route path="plan" element={<PlanPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
 

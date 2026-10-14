@@ -131,3 +131,18 @@ export function singaporeMonthShortLabel(monthKey: string): string {
 export function singaporeDayOfMonthLabel(dayKey: string): string {
   return String(Number(dayKey.slice(8, 10)));
 }
+
+// ISO weekday of a day key: 1 = Monday ... 7 = Sunday.
+export function singaporeIsoWeekday(dayKey: string): number {
+  const weekday = dayKeyToSingaporeCalendarDate(dayKey).getUTCDay();
+  return weekday === 0 ? 7 : weekday;
+}
+
+// Every day key from `from` to `to`, inclusive. Empty if `to` is before `from`.
+export function eachSingaporeDayKey(from: string, to: string): string[] {
+  const days: string[] = [];
+  for (let cursor = from; cursor <= to; cursor = addSingaporeDaysKey(cursor, 1)) {
+    days.push(cursor);
+  }
+  return days;
+}

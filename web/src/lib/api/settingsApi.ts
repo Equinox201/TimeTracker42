@@ -9,6 +9,7 @@ import {
 import { isDemoMode } from "../../demo/demoMode";
 import { supabase } from "../supabase";
 import { deriveGoalDraft } from "../goalMath";
+import { singaporeDayKey } from "../singaporeDate";
 
 type PaceMode = "calendar_days" | "weekdays";
 
@@ -30,6 +31,7 @@ type DeadlineRow = {
   target_seconds: number | null;
   notes: string | null;
   is_completed: boolean;
+  start_on: string;
 };
 
 export type GoalSettings = {
@@ -54,6 +56,7 @@ export type GoalUpsertInput = {
 export type Deadline = {
   id: string;
   title: string;
+  startOn: string;
   targetDate: string;
   targetHours: number;
   notes: string | null;
@@ -62,6 +65,7 @@ export type Deadline = {
 
 export type DeadlineCreateInput = {
   title: string;
+  startOn?: string;
   targetDate: string;
   targetHours: number;
   notes: string | null;
@@ -128,6 +132,7 @@ function normalizeDeadline(row: DeadlineRow): Deadline {
   return {
     id: row.id,
     title: row.title,
+    startOn: row.start_on,
     targetDate: dateOnlyFromTimestamp(row.due_at),
     targetHours: secondsToHours(row.target_seconds ?? 0),
     notes: row.notes,
@@ -235,7 +240,7 @@ export async function getDeadlines(_accessToken: string): Promise<Deadline[]> {
   const userId = await authenticatedUserId();
   const { data, error } = await supabase
     .from("deadlines")
-    .select("id,user_id,title,due_at,target_seconds,notes,is_completed")
+    .select("id,user_id,title,due_at,target_seconds,notes,is_completed,start_on")
     .eq("user_id", userId)
     .order("due_at", { ascending: true })
     .returns<DeadlineRow[]>();
@@ -259,6 +264,7 @@ export async function createDeadline(
     return normalizeDeadline(
       createDemoDeadline({
         title: payload.title,
+        start_on: payload.startOn ?? singaporeDayKey(),
         due_at: dateOnlyToUtcMidnight(payload.targetDate),
         target_seconds: hoursToSeconds(payload.targetHours),
         notes: payload.notes
@@ -272,12 +278,13 @@ export async function createDeadline(
     .insert({
       user_id: userId,
       title: payload.title,
+      ...(payload.startOn ? { start_on: payload.startOn } : {}),
       due_at: dateOnlyToUtcMidnight(payload.targetDate),
       target_seconds: hoursToSeconds(payload.targetHours),
       notes: payload.notes,
       is_completed: false
     })
-    .select("id,user_id,title,due_at,target_seconds,notes,is_completed")
+    .select("id,user_id,title,due_at,target_seconds,notes,is_completed,start_on")
     .single<DeadlineRow>();
 
   if (error) {
@@ -318,7 +325,7 @@ export async function updateDeadline(
     .update(body)
     .eq("id", deadlineId)
     .eq("user_id", userId)
-    .select("id,user_id,title,due_at,target_seconds,notes,is_completed")
+    .select("id,user_id,title,due_at,target_seconds,notes,is_completed,start_on")
     .single<DeadlineRow>();
 
   if (error) {
