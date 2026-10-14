@@ -1,5 +1,7 @@
 import { createClient } from "supabase";
 
+import { createLogger, errorMessage, type Logger } from "../_shared/log.ts";
+
 const FORTY_TWO_TOKEN_URL = "https://api.intra.42.fr/oauth/token";
 const FORTY_TWO_ME_URL = "https://api.intra.42.fr/v2/me";
 const EXCHANGE_CODE_TTL_MS = 5 * 60 * 1000;
@@ -36,21 +38,6 @@ type VerifiedFortyTwoProfile = FortyTwoProfile & {
   id: number;
   login: string;
 };
-
-// Structured, secret-free logging: never pass codes, tokens or client secrets here.
-function logEvent(event: string, details: Record<string, unknown> = {}): void {
-  console.error(JSON.stringify({ fn: "forty-two-oauth-callback", event, ...details }));
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  if (error && typeof error === "object" && "message" in error) {
-    return String((error as { message: unknown }).message);
-  }
-  return String(error);
-}
 
 function requiredEnv(name: string): string {
   const value = Deno.env.get(name);
@@ -129,7 +116,8 @@ async function exchangeFortyTwoCode(
   code: string,
   clientId: string,
   clientSecret: string,
-  redirectUri: string
+  redirectUri: string,
+  log: Logger
 ): Promise<Required<Pick<FortyTwoTokenResponse, "access_token">> & FortyTwoTokenResponse> {
   const body = new URLSearchParams({
     grant_type: "authorization_code",
@@ -150,7 +138,7 @@ async function exchangeFortyTwoCode(
   if (!response.ok) {
     // 42 answers with {"error": "invalid_client", "error_description": "..."}; safe to log.
     const detail = (await response.text()).slice(0, 300);
-    logEvent("token_exchange_rejected", { status: response.status, detail });
+    log.error("token_exchange_rejected", { status: response.status, detail });
     throw new Error("42 token exchange failed");
   }
 
@@ -162,7 +150,7 @@ async function exchangeFortyTwoCode(
   return token as Required<Pick<FortyTwoTokenResponse, "access_token">> & FortyTwoTokenResponse;
 }
 
-async function fetchFortyTwoProfile(accessToken: string): Promise<VerifiedFortyTwoProfile> {
+async function fetchFortyTwoProfile(accessToken: string, log: Logger): Promise<VerifiedFortyTwoProfile> {
   const response = await fetch(FORTY_TWO_ME_URL, {
     headers: {
       Authorization: `Bearer ${accessToken}`
@@ -170,7 +158,7 @@ async function fetchFortyTwoProfile(accessToken: string): Promise<VerifiedFortyT
   });
 
   if (!response.ok) {
-    logEvent("profile_fetch_rejected", { status: response.status });
+    log.error("profile_fetch_rejected", { status: response.status });
     throw new Error("42 profile fetch failed");
   }
 
@@ -359,6 +347,9 @@ async function createAuthExchangeCode(
 }
 
 Deno.serve(async (req) => {
+  const log = createLogger("forty-two-oauth-callback");
+  const startedAt = Date.now();
+
   if (req.method === "OPTIONS") {
     return new Response(null, {
       status: 204,
@@ -393,7 +384,7 @@ Deno.serve(async (req) => {
     syntheticEmailDomain = requiredEnv("FORTY_TWO_AUTH_EMAIL_DOMAIN");
     appOrigin = requiredEnv("APP_ORIGIN");
   } catch (error) {
-    logEvent("config_incomplete", { reason: errorMessage(error) });
+    log.error("config_incomplete", { reason: errorMessage(error) });
     return Response.json(
       { error: "Server configuration is incomplete." },
       {
@@ -407,6 +398,7 @@ Deno.serve(async (req) => {
   const requestUrl = new URL(req.url);
   const state = requestUrl.searchParams.get("state");
   if (!state) {
+    log.warn("missing_state");
     return redirectWithParam(fallbackRedirectTo, "error", "invalid_state");
   }
 
@@ -420,16 +412,18 @@ Deno.serve(async (req) => {
   const nowIso = new Date().toISOString();
   const redirectTo = await consumeOAuthState(supabase, state, nowIso);
   if (!redirectTo) {
-    logEvent("invalid_state");
+    log.warn("invalid_state");
     return redirectWithParam(fallbackRedirectTo, "error", "invalid_state");
   }
 
   if (requestUrl.searchParams.get("error")) {
+    log.info("forty_two_denied", { forty_two_error: requestUrl.searchParams.get("error") });
     return redirectWithParam(redirectTo, "error", "forty_two_denied");
   }
 
   const code = requestUrl.searchParams.get("code");
   if (!code) {
+    log.warn("missing_code");
     return redirectWithParam(redirectTo, "error", "missing_code");
   }
 
@@ -439,18 +433,19 @@ Deno.serve(async (req) => {
       code,
       fortyTwoClientId,
       fortyTwoClientSecret,
-      fortyTwoRedirectUri
+      fortyTwoRedirectUri,
+      log
     );
   } catch (error) {
-    logEvent("exchange_failed", { reason: errorMessage(error) });
+    log.error("exchange_failed", { reason: errorMessage(error) });
     return redirectWithParam(redirectTo, "error", "forty_two_exchange_failed");
   }
 
   let fortyTwoProfile: VerifiedFortyTwoProfile;
   try {
-    fortyTwoProfile = await fetchFortyTwoProfile(token.access_token);
+    fortyTwoProfile = await fetchFortyTwoProfile(token.access_token, log);
   } catch (error) {
-    logEvent("profile_failed", { reason: errorMessage(error) });
+    log.error("profile_failed", { reason: errorMessage(error) });
     return redirectWithParam(redirectTo, "error", "forty_two_profile_failed");
   }
 
@@ -462,9 +457,13 @@ Deno.serve(async (req) => {
     await upsertFortyTwoTokens(supabase, userId, token, writeNowIso);
 
     const exchangeCode = await createAuthExchangeCode(supabase, userId);
+    log.info("login_succeeded", {
+      forty_two_user_id: fortyTwoProfile.id,
+      duration_ms: Date.now() - startedAt
+    });
     return redirectWithParam(redirectTo, "exchange_code", exchangeCode);
   } catch (error) {
-    logEvent("auth_setup_failed", { reason: errorMessage(error) });
+    log.error("auth_setup_failed", { reason: errorMessage(error) });
     return redirectWithParam(redirectTo, "error", "auth_setup_failed");
   }
 });

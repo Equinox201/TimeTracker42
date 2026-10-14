@@ -1,5 +1,7 @@
 import { createClient } from "supabase";
 
+import { createLogger, errorMessage } from "../_shared/log.ts";
+
 const corsMethods = "POST, OPTIONS";
 const corsHeadersList = "authorization, x-client-info, apikey, content-type";
 
@@ -125,6 +127,7 @@ async function generateEmailTokenHash(
 }
 
 Deno.serve(async (req) => {
+  const log = createLogger("auth-exchange");
   let supabaseUrl: string;
   let serviceRoleKey: string;
   let allowedOrigin: string;
@@ -133,7 +136,8 @@ Deno.serve(async (req) => {
     supabaseUrl = requiredEnv("EDGE_SUPABASE_URL");
     serviceRoleKey = requiredEnv("EDGE_SUPABASE_SERVICE_ROLE_KEY");
     allowedOrigin = appOriginValue(requiredEnv("APP_ORIGIN"));
-  } catch {
+  } catch (error) {
+    log.error("config_incomplete", { reason: errorMessage(error) });
     return Response.json(
       { error: "Server configuration is incomplete." },
       {
@@ -147,6 +151,7 @@ Deno.serve(async (req) => {
   }
 
   if (!originAllowed(req, allowedOrigin)) {
+    log.warn("origin_rejected", { origin: req.headers.get("origin") });
     return jsonResponse(allowedOrigin, { error: "Origin not allowed." }, 403);
   }
 
@@ -163,6 +168,7 @@ Deno.serve(async (req) => {
 
   const exchangeCode = await readExchangeCode(req);
   if (!exchangeCode) {
+    log.warn("malformed_exchange_code");
     return jsonResponse(allowedOrigin, { error: "Invalid exchange code." }, 400);
   }
 
@@ -175,18 +181,22 @@ Deno.serve(async (req) => {
 
   const userId = await consumeExchangeCode(supabase, exchangeCode, new Date().toISOString());
   if (!userId) {
+    // Expected when a client replays a single-use code; useful to spot duplicate submissions.
+    log.warn("exchange_code_rejected");
     return jsonResponse(allowedOrigin, { error: "Invalid or expired exchange code." }, 400);
   }
 
   const { data: userData, error: userError } = await supabase.auth.admin.getUserById(userId);
   const email = userData?.user?.email;
   if (userError || !email) {
+    log.error("user_lookup_failed", { reason: userError ? errorMessage(userError) : "missing_email" });
     return jsonResponse(allowedOrigin, { error: "Could not prepare sign-in." }, 500);
   }
 
   try {
     const tokenHash = await generateEmailTokenHash(supabase, email);
     if (!tokenHash) {
+      log.error("token_hash_missing");
       return jsonResponse(allowedOrigin, { error: "Could not prepare sign-in." }, 500);
     }
 
@@ -198,7 +208,8 @@ Deno.serve(async (req) => {
       },
       200
     );
-  } catch {
+  } catch (error) {
+    log.error("token_hash_failed", { reason: errorMessage(error) });
     return jsonResponse(allowedOrigin, { error: "Could not prepare sign-in." }, 500);
   }
 });
