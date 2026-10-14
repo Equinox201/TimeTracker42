@@ -2,7 +2,10 @@
 
 TimeTracker42 is a mobile-first attendance tracker for 42 students. It signs users in with 42 OAuth, syncs official campus location sessions, and turns that attendance history into dashboard progress, monthly history, goals, deadlines, stale-data warnings, and manual sync feedback.
 
-Try the web app: https://timetracker42.pages.dev/
+[![CI](https://github.com/Equinox201/TimeTracker42/actions/workflows/ci.yml/badge.svg)](https://github.com/Equinox201/TimeTracker42/actions/workflows/ci.yml)
+
+- **Live app:** https://timetracker42.pages.dev/
+- **Try it without a 42 account:** https://timetracker42.pages.dev/demo (sample data for a fictional student, John Doe)
 
 ## Preview
 
@@ -17,6 +20,18 @@ Try the web app: https://timetracker42.pages.dev/
 - User-owned goals and deadlines stored in Supabase Postgres.
 - Stale/failed/last-sync status from `sync_runs`.
 - Mobile-first web UI suitable for iPhone Safari and PWA-style use.
+
+## Demo Mode
+
+Recruiters and reviewers can explore the full app without a 42 account at `/demo`, or with the
+**Try the demo** button on the login page.
+
+- Everything is synthetic: attendance, goals, deadlines and sync history for a fictional student.
+- No requests go to Supabase or 42 while demo mode is on.
+- Data is generated relative to the current Singapore date, so the dashboard always shows a current month.
+- The demo plugs in at the data-access layer (`web/src/demo/`), so the real summary, pace and goal
+  calculations run over the generated rows. Edits (goals, deadlines, manual sync) live in memory and
+  reset on reload.
 
 ## Current Architecture
 
@@ -83,10 +98,12 @@ GET https://api.intra.42.fr/v2/users/:id/locations
 ## Repository Structure
 
 ```text
-web/       React + TypeScript frontend for Cloudflare Pages
-supabase/  Database migrations and Edge Functions
-docs/      Architecture, runbook, and function contract notes
-ios/       Legacy iOS project kept for reference while the web app is prioritized
+web/                 React + TypeScript frontend for Cloudflare Pages
+web/src/demo/        Synthetic data and in-memory store behind demo mode
+supabase/migrations  Database schema, RLS policies
+supabase/functions   Edge Functions (+ _shared/log.ts structured logger)
+docs/                Architecture, runbook (incl. incident notes), function contract
+.github/workflows    CI: web typecheck/test/build, Deno check of Edge Functions
 ```
 
 ## Frontend Environment Variables
@@ -176,17 +193,47 @@ npx supabase secrets set FORTY_TWO_REDIRECT_URI=... FORTY_TWO_AUTH_EMAIL_DOMAIN=
 
 Do not commit actual secret values.
 
+## Design Decisions
+
+- **Custom 42 OAuth on Edge Functions.** The browser never sees 42 tokens or the client secret. The
+  callback exchanges the code server-side, maps the stable 42 user id to a Supabase user, and hands the
+  browser a one-time exchange code instead of a session.
+- **Single-use, hashed secrets.** OAuth `state` and exchange codes are stored as SHA-256 hashes and
+  consumed once, which rejects CSRF and replay. The frontend shares one in-flight sign-in per callback
+  URL, because React effects can re-run and a consumed code is (correctly) rejected.
+- **RLS instead of an API server.** The web app reads and writes its own rows straight from Supabase
+  under row-level security; Edge Functions exist only where a secret or the 42 API is involved.
+- **Singapore operational days.** `attendance_daily.day` is keyed by `Asia/Singapore`, and the sync
+  function and UI share that rule (`web/src/lib/singaporeDate.ts`), so day, week and month totals agree.
+- **Safe failures.** Sync errors store short messages only; detailed reasons go to structured logs
+  without tokens, codes or secrets.
+
+## Observability
+
+Every Edge Function logs one JSON line per event (`fn`, `event`, `request_id`). The runbook maps each
+browser-visible `error=` code to the log event that explains it and documents secret rotation:
+[docs/runbook.md](docs/runbook.md#diagnosing-sign-in-failures).
+
 ## Quality Gates
 
-Web checks:
+Run by CI on every pull request:
 
 ```bash
 cd web
 npm run typecheck
+npm test
 npm run build
 ```
 
-Edge Functions are Deno/Supabase functions. Run Deno checks locally if `deno` is installed, or validate through deployment/runtime testing.
+Edge Functions are type-checked with Deno, one function at a time:
+
+```bash
+deno check --config supabase/functions/forty-two-oauth-callback/deno.json \
+  supabase/functions/forty-two-oauth-callback/index.ts
+```
+
+The unit tests cover the pure logic: goal and pace math, Singapore date keys, formatters, the
+single-use sign-in guard, and the demo data generators.
 
 ## Security
 
