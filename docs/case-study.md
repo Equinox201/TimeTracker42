@@ -1,9 +1,5 @@
 # TimeTracker42: case study
 
-> **Draft: edit this into your own words before you rely on it.** The facts below come from the
-> project's history, tests and logs. Anything about your motivations, your role and your reflections
-> is yours to write; replace the sections marked *(your words)*.
-
 ## The problem
 
 42 students have to meet a monthly campus attendance target. The official numbers are available but
@@ -11,8 +7,6 @@ awkward to read, and the useful question is never "how many hours do I have?" bu
 behind, and what does it take to finish the month on target?"**
 
 TimeTracker42 syncs a student's official 42 location sessions and answers that question every day.
-
-*(your words: why you built it, who you built it for, what you wanted to learn.)*
 
 ## What it is
 
@@ -88,11 +82,10 @@ run against the production build with no backend configured.
 
 ## How I used AI tools
 
-*(your words, and keep it specific and true.)* This project was built with AI assistance: an AI coding
-assistant for implementation, tests and debugging, and a second model as an independent reviewer. What
-stayed with me: what to build, which review findings to act on, and verifying behaviour in the real
-system rather than trusting generated code. Examples of where the tools were wrong and how it was caught
-are in the section above.
+This project was built with AI assistance: an AI coding assistant for implementation, tests and debugging, 
+and a second model as an independent reviewer. Whatstayed with me: what to build, which review findings to 
+act on, and verifying behaviour in the real system rather than trusting generated code. Examples of where 
+the tools were wrong and how it was caught are in the section above.
 
 ## What I would do next
 
