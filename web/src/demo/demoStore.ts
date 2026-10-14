@@ -148,7 +148,7 @@ export async function runDemoSync(now: () => Date = () => new Date()): Promise<D
     next.attendance.push({
       day: today,
       seconds: SYNC_BUMP_SECONDS,
-      source: "demo",
+      source: "locations_live",
       synced_at: finishedIso
     });
     next.attendance.sort((a, b) => a.day.localeCompare(b.day));
