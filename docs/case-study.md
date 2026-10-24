@@ -83,7 +83,7 @@ run against the production build with no backend configured.
 ## How I used AI tools
 
 This project was built with AI assistance: an AI coding assistant for implementation, tests and debugging, 
-and a second model as an independent reviewer. Whatstayed with me: what to build, which review findings to 
+and a second model as an independent reviewer. What stayed with me: what to build, which review findings to 
 act on, and verifying behaviour in the real system rather than trusting generated code. Examples of where 
 the tools were wrong and how it was caught are in the section above.
 
@@ -92,5 +92,5 @@ the tools were wrong and how it was caught are in the section above.
 - Scheduled, incremental sync instead of manual only.
 - Goal versioning, so changing a goal does not reclassify past days.
 - Encrypt the stored 42 tokens at rest (Supabase Vault).
-- Account disconnect and data deletion, with a privacy note.
+- Account disconnect: let people unlink 42 without deleting their data.
 - Put it in front of a handful of real students and act on what they say.
