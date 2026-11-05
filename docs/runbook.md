@@ -61,6 +61,7 @@ npx supabase functions deploy forty-two-oauth-start
 npx supabase functions deploy forty-two-oauth-callback
 npx supabase functions deploy auth-exchange
 npx supabase functions deploy forty-two-sync-manual
+npx supabase functions deploy delete-account
 ```
 
 ## Cloudflare Pages
@@ -161,7 +162,7 @@ different context (for example an in-app Safari sheet) cannot present it.
 ## Database access model
 
 `anon` has no table privileges. `authenticated` can read `profiles`, `attendance_daily`, `location_sessions`
-and `sync_runs` (own rows via RLS) and read/write `goals` and `deadlines`. Everything else, including
+and `sync_runs` (own rows via RLS) and read/write `goals`, `deadlines` and `attendance_plans`. Everything else, including
 `forty_two_tokens`, `oauth_states` and `auth_exchange_codes`, is service-role only. New tables give the
 service role full access and the API roles nothing (`alter default privileges`), so a migration that adds
 a user-facing table must `grant` the minimum to `authenticated` explicitly, enable RLS with policies, and

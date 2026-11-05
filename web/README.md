@@ -73,7 +73,7 @@ Where the logic lives: `lib/pace.ts` (ahead or behind), `lib/planner.ts` (feasib
   work), with light and dark values and a single teal accent. Amber and red only mean "watch" and
   "behind / error".
 - Inter Variable is self-hosted (Latin subset only). Hours use tabular numerals.
-- Every text/background pair, including text on tinted backgrounds, is asserted AA in
+- Every text and background pair, including text on tinted backgrounds, is asserted to meet WCAG AA in
   `src/styles/contrast.test.ts`.
 
 ## Runtime Dependencies
