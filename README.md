@@ -8,25 +8,61 @@ attendance goal, and what does it take to get there?**
 
 - **Live app:** https://timetracker42.pages.dev/
 - **Try it without a 42 account:** https://timetracker42.pages.dev/demo (sample data for a fictional student, John Doe)
+- **Walkthrough video:** https://youtu.be/ALw3BFAAp8E
 - **How it was built, and what went wrong along the way:** [docs/case-study.md](docs/case-study.md)
+- **How AI tools were used:** [docs/ai-dev/README.md](docs/ai-dev/README.md)
 
-## Preview
+## Overview
 
-![A 25-second tour: landing page, demo dashboard with the pace hero, then the planner turning an impossible plan into a reachable one](assets/screenshots/walkthrough.gif)
+### Problem
 
-![Landing page](assets/screenshots/landing.png)
+- **Who is affected?** 42 students. Each has a monthly campus attendance target to meet.
+- **What is the issue?** The official numbers exist but are awkward to read. The useful question is never
+  "how many hours do I have?" but "am I ahead or behind, and what will it take to finish the month on
+  target?" Days also follow Singapore time (`Asia/Singapore`), which most calendars do not.
+
+### Outcome
+
+- **What was achieved?** A deployed, installable web app (v1.0.0). A student signs in with 42, syncs their
+  official campus sessions, sees whether they are ahead of or behind a monthly goal, and plans the rest of
+  the month. It also has a no-account demo, account deletion, and automated checks on every pull request.
+- **Measurable results.** Measured on 29 October 2026: 182 unit tests, 53 database assertions (grants and
+  row-level security) and 46 end-to-end and accessibility tests all pass, across a desktop and a phone
+  viewport in light and dark themes. CI runs four jobs plus CodeQL on every pull request. Lighthouse on the
+  production build, measured locally on 14 October 2026: accessibility 100, SEO 100, performance 100 on
+  desktop and 93 on mobile.
+
+## Demo
+
+How the solution works from a student's point of view, start to finish:
+
+1. **Start.** Open the [demo](https://timetracker42.pages.dev/demo), or choose **Continue with 42** on the
+   landing page to sign in with a real account.
+2. **Dashboard (Main).** Read the status chip (for example "2h 20m behind pace"), the chart of hours against
+   the pace line, and the Today / This week / Hours left / Needed per day tiles. **Sync now** pulls the latest
+   sessions from 42 (in the demo it only simulates a sync).
+3. **Plan.** Choose the weekdays you can attend and a daily limit, tap days on the calendar to take them off or
+   add extras, read whether the goal is reachable, apply a suggested fix, then **Save plan**.
+4. **History.** Six months of totals and a month calendar.
+5. **Settings.** Goals, project deadlines, theme, and **Delete my data**.
+
+![A 12-second tour: landing page, demo dashboard with the pace hero, then the planner turning an impossible plan into a reachable one](assets/screenshots/walkthrough.gif)
+
+![Landing page: headline, Continue with 42 and Try the demo buttons, and a dashboard preview reading 47h 40m of 110h, 2h 20m behind pace](assets/screenshots/landing.png)
 
 ![Dashboard: pace hero, cumulative chart and calendar](assets/screenshots/dashboard.png)
 
 | Planner | Dashboard, light theme |
 |---|---|
-| ![Planner calendar](assets/screenshots/planner.png) | ![Dashboard in the light theme](assets/screenshots/dashboard-light.png) |
+| ![Planner: a month calendar showing working days with planned hours, one day off and extra-day toggles](assets/screenshots/planner.png) | ![Dashboard in the light theme](assets/screenshots/dashboard-light.png) |
 
 | On a phone: dashboard | On a phone: planner |
 |---|---|
-| <img src="assets/screenshots/dashboard-phone.png" alt="Dashboard on a phone" width="320"> | <img src="assets/screenshots/planner-phone.png" alt="Planner on a phone" width="320"> |
+| <img src="assets/screenshots/dashboard-phone.png" alt="Dashboard on a phone: pace hero and chart with the bottom tab bar" width="320"> | <img src="assets/screenshots/planner-phone.png" alt="Planner on a phone: the month calendar, the Reachable result and a day-by-day plan" width="320"> |
 
-All screenshots are generated from demo mode with `npm run screenshots` in `web/`.
+The six PNGs are generated from demo mode with `npm run screenshots` in `web/`. The walkthrough GIF is
+recorded from demo mode by `web/e2e/tools/make-walkthrough.mjs`; the commands are in that file's header.
+All of them use synthetic data for a fictional student.
 
 ## What It Does
 
@@ -55,6 +91,94 @@ All screenshots are generated from demo mode with `npm run screenshots` in `web/
 | `/app/history` | Six-month history and monthly calendar |
 | `/app/plan` | Attendance planner |
 | `/app/settings` | Theme, account, goals, deadlines and "Delete my data" |
+
+## Technology Stack
+
+### Frontend components
+
+- React 18 and TypeScript, built with Vite 7; an installable PWA (`vite-plugin-pwa`).
+- Tailwind CSS 3 with design tokens and self-hosted Inter Variable.
+- React Router 7 for routes, TanStack Query 5 for server state, Recharts 2 for charts, date-fns for dates.
+- Supabase JS client for the browser session and row-level-security reads and writes.
+- Tested with Vitest, and Playwright plus axe-core for end-to-end and accessibility checks.
+- Hosted on Cloudflare Pages.
+
+### Backend components
+
+- Supabase Postgres: migrations, row-level security and explicit grants, with pgTAP tests.
+- Supabase Auth for browser sessions.
+- Supabase Edge Functions (Deno and TypeScript): `forty-two-oauth-start`, `forty-two-oauth-callback`,
+  `auth-exchange`, `forty-two-sync-manual` and `delete-account`. They are the only code that holds secrets.
+- The 42 API for OAuth and campus location sessions.
+- GitHub Actions for four CI jobs, plus CodeQL and Dependabot. The Supabase GitHub integration applies
+  migrations and deploys the functions when a change is merged to `main`.
+
+## Installation
+
+Requirements: Node.js 22 and npm. Docker, the Supabase CLI and Deno are only needed to run the database and
+Edge Function tests.
+
+```bash
+git clone https://github.com/Equinox201/TimeTracker42.git
+cd TimeTracker42/web
+cp .env.example .env     # optional: demo mode works without it
+npm install
+npm run dev              # http://127.0.0.1:5173
+```
+
+Open `/demo` to explore without any backend. Real sign-in and data need a Supabase project and a 42 OAuth
+application; see [Configuration](#configuration) and [docs/runbook.md](docs/runbook.md).
+
+## Usage
+
+Run these from `web/` unless noted.
+
+| Command | What it does | Expected result |
+|---|---|---|
+| `npm run dev` | Starts the dev server | App at `http://127.0.0.1:5173`; `/demo` shows the dashboard for a fictional student |
+| `npm run typecheck` | Type-checks `src` and `e2e` | No errors |
+| `npm test` | Unit tests (Vitest) | 17 files, 182 tests pass |
+| `npm run build` | Production build | `dist/` with the PWA service worker |
+| `npm run preview` | Serves the production build | Same app, as built |
+| `npm run e2e` | Playwright on desktop and phone, plus axe-core | 46 pass; the 12 screenshot tests are skipped unless you run `npm run screenshots` |
+| `npm run screenshots` | Regenerates the README images from demo mode | Files in `assets/screenshots/` |
+| `deno test supabase/functions/_shared/` (repo root) | Edge Function unit tests | All pass (needs Deno) |
+| `supabase start && supabase test db` (repo root) | Applies the migrations, then runs the pgTAP tests | 53 assertions pass (needs Docker) |
+
+Playwright needs a browser: `npx playwright install chromium`, or set `PW_CHANNEL=chrome` to use an installed
+Chrome.
+
+Examples of the expected behaviour in demo mode:
+
+- Open `/demo`: the dashboard shows a status chip such as "2h 20m behind pace". The figures are generated
+  relative to today's Singapore date, so they change from month to month.
+- On **Plan**, set "Most hours I will stay on one day" to `2`: the planner reports that the goal is not reachable
+  with this schedule and offers one-click fixes. Applying one makes the result "Reachable".
+- Tap a Saturday on the calendar: it becomes an extra day, the plan recalculates and the page flags
+  "Unsaved changes". Edits in demo mode live in memory and reset on reload.
+
+## Project Structure
+
+```text
+web/                      React + TypeScript frontend (Cloudflare Pages root directory)
+  src/lib/                Pure logic: pace, planner, deadlines, dates, formatters
+  src/components/ui/      Design-system primitives (Card, Button, Banner, Stat, ...)
+  src/demo/               Synthetic data and in-memory store behind demo mode
+  e2e/                    Playwright: demo flow, accessibility, screenshot generator
+supabase/
+  migrations/             Schema, RLS policies, grants, sync lock and finalize function
+  functions/              Edge Functions; _shared/ holds logging, crypto, binding,
+                          attendance maths and HTTP retry (with Deno tests)
+  tests/database/         pgTAP tests for grants and row-level security
+docs/                     Architecture, API contract, runbook (incl. incident notes), privacy note,
+                          case study
+  ai-dev/                 AI usage overview
+assets/screenshots/       README images and walkthrough GIF, generated from demo mode
+.github/                  CI and CodeQL workflows, Dependabot configuration
+```
+
+The frontend lives in `web/` because that is the Cloudflare Pages root directory. Tests sit next to the code:
+`web/src/**/*.test.ts`, `web/e2e/`, `supabase/functions/_shared/*_test.ts` and `supabase/tests/database/`.
 
 ## Demo Mode
 
@@ -139,24 +263,6 @@ More detail, including sequence descriptions of sign-in and sync, is in
 - Today's row is marked `locations_live` while a session is open, and the dashboard shows it as
   provisional with the time of the last sync.
 
-## Repository Structure
-
-```text
-web/                      React + TypeScript frontend (Cloudflare Pages)
-  src/lib/                Pure logic: pace, planner, deadlines, dates, formatters
-  src/components/ui/      Design-system primitives (Card, Button, Banner, Stat, ...)
-  src/demo/               Synthetic data and in-memory store behind demo mode
-  e2e/                    Playwright: demo flow, accessibility, screenshot generator
-supabase/
-  migrations/             Schema, RLS policies, grants, sync lock and finalize function
-  functions/              Edge Functions; _shared/ holds logging, crypto, binding,
-                          attendance maths and HTTP retry (with Deno tests)
-  tests/database/         pgTAP tests for grants and row-level security
-docs/                     Architecture, API contract, runbook (incl. incident notes), case study
-assets/screenshots/       README images, generated from demo mode
-.github/workflows/        CI
-```
-
 ## Configuration
 
 ### Frontend environment variables
@@ -188,17 +294,6 @@ FORTY_TWO_AUTH_EMAIL_DOMAIN
 APP_ORIGIN
 REQUIRE_LOGIN_BINDING   # "true" rejects logins that arrive without a browser binding
 ```
-
-## Local Development
-
-```bash
-cd web
-cp .env.example .env     # optional: demo mode works without it
-npm install
-npm run dev              # http://127.0.0.1:5173
-```
-
-Open `/demo` to explore without any backend.
 
 ## Deployment
 

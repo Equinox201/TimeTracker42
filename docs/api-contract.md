@@ -18,11 +18,11 @@ Starts the 42 OAuth flow.
 
 Query params:
 
-- `redirect_to` optional frontend callback URL. Must match the configured app origin.
-- `binding` the base64url SHA-256 of a verifier the browser keeps (43 characters). Required when
+- `redirect_to`: optional frontend callback URL. Must match the configured app origin.
+- `binding`: the base64url SHA-256 of a verifier the browser keeps (43 characters). Required when
   `REQUIRE_LOGIN_BINDING=true`.
 
-Behavior:
+Behaviour:
 
 - Creates a random OAuth state and stores only its SHA-256 hash, with `redirect_to` and the binding, in
   `oauth_states`.
@@ -35,9 +35,9 @@ Errors (JSON): `400` `Invalid redirect_to.`, `400` `Invalid binding.`, `400` `Lo
 
 Receives the 42 OAuth callback.
 
-Query params from 42: `code`, `state`, `error` (optional).
+Query params from 42: `code`, `state` and an optional `error`.
 
-Behavior:
+Behaviour:
 
 - Validates and consumes the OAuth state once.
 - Exchanges the 42 code server-side and fetches `/v2/me`.
@@ -124,7 +124,7 @@ Response:
 
 `updatedDays` includes days that were reconciled down to zero.
 
-Behavior:
+Behaviour:
 
 - Verifies the Supabase user and takes the per-user sync lock.
 - Reads stored 42 tokens server-side and refreshes the 42 token when needed.

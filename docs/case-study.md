@@ -62,30 +62,35 @@ suggestion never rewrites the target.
   covers text on tinted backgrounds as well as flat surfaces.
 - **Verifying a review before acting on it.** An independent review listed several problems. I checked
   each against the code and, for the database claims, against the production project before changing
-  anything. Most were real; the severity was not always what the review said, and one claim about
-  dependencies turned out to be dev-only.
+  anything. All six of its main findings reproduced. Its dependency advisory counts were real but came from
+  build-time tooling; the runtime dependencies had two moderate advisories, which an upgrade cleared.
 - **Stacked pull requests.** I stacked three PRs on top of each other and merged them in order; only the
   first reached `main`, because each one's base was the previous branch. It was caught by checking that
   the files existed on `main` rather than trusting "merged", and fixed with a single landing PR. Lesson:
   retarget before merging, or do not stack.
-- **My own tests were wrong more than once.** Twice the code was right and the test expectation was
-  wrong (for example a session placed after the test's fixed "now"). Reading the failure carefully
+- **The AI-written tests were wrong more than once.** Twice the code was right and the test expectation
+  was wrong (for example a session placed after the test's fixed "now"). Reading the failure carefully
   before "fixing" the code mattered.
 
 ## How it is verified
 
 At the time of writing: about 180 unit tests (pace, planner, deadlines, dates, demo data, colour
-contrast), around 30 Deno tests for the shared Edge Function modules, around 40 pgTAP assertions for
+contrast), around 30 Deno tests for the shared Edge Function modules, 53 pgTAP assertions for
 grants and row-level security, and Playwright end-to-end and axe-core accessibility checks on a desktop
 and a phone viewport in light and dark. CI runs all four on every pull request, and the browser tests
 run against the production build with no backend configured.
 
 ## How I used AI tools
 
-This project was built with AI assistance: an AI coding assistant for implementation, tests and debugging, 
-and a second model as an independent reviewer. What stayed with me: what to build, which review findings to 
-act on, and verifying behaviour in the real system rather than trusting generated code. Examples of where 
-the tools were wrong and how it was caught are in the section above.
+This project was built with AI assistance: Codex for the earlier prototype and the Supabase rewrite (January
+to June 2026), Claude Code for bounded implementation, tests and debugging in October, and ChatGPT as an
+independent reviewer of the repository. What stayed with me: what to build, which review
+findings to act on, merging every change myself, and verifying behaviour in the real system rather than
+trusting generated code. Examples of where the tools were wrong, and how it was caught, are in the section
+above.
+
+The tools, the key prompts, and the review points and decisions are in the
+[AI usage overview](ai-dev/README.md).
 
 ## What I would do next
 
